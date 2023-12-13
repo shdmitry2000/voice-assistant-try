@@ -4,7 +4,7 @@ from aiohttp import web
 import aiohttp
 import concurrent.futures
 import asyncio
-from speech_recognition import AudioData
+# from speech_recognition import AudioData
 # from asyncio import Awaitable
 import labSpeachrecognitionImpl
 import librosa
@@ -14,90 +14,32 @@ import io
 from io import BytesIO
 import traceback
 # from fastapi import Depends
-import multiprocessing
-
+from concurrent.futures import ThreadPoolExecutor
 
 from pydub import AudioSegment, silence
 
 
-# Audio settings
-STEP_IN_SEC: int = 1    # We'll increase the processable audio data by this
-LENGHT_IN_SEC: int = 6    # We'll process this amount of audio data together maximum
-NB_CHANNELS = 1
-RATE = 16000
-CHUNK = RATE
-idle_time=1
+import speech_recognition as sr
+import os ,time
+import voice,labSpeachrecognitionImpl
+from typing import Dict, List
+import numpy as np
+from bidi.algorithm import get_display
+
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+import multiprocessing
+import signal
+
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 recognizer= labSpeachrecognitionImpl.LabRecognizer()
 
-# import sys
-# from datetime import datetime
-# from typing import Optional, List, Union, Any, Dict , Callable , Awaitable ,Tuple ,Metadata , TypedDict
+transcription_tasks=[]
 
-
-# from enum import Enum
-
-# EventHandler = Union[Callable[[Any], None], Callable[[Any], Awaitable[None]]]
-
-
-# def cast(typ, val):
-#     """Cast a value to a type.
-
-#     This returns the value unchanged.  To the type checker this
-#     signals that the return value has the designated type, but at
-#     runtime we intentionally don't check anything (we want this
-#     to be as fast as possible).
-#     """
-#     return val
-
-# class LiveTranscriptionEvent(Enum):
-#     OPEN = 'open'
-#     CLOSE = 'close'
-#     TRANSCRIPT_RECEIVED = 'transcript_received'
-#     ERROR = 'error'
-
-
-
+SILENCE_DELETE_SEC=1
 
 routes = web.RouteTableDef()
 
-
-@routes.get('/test')
-async def index(request):
-   return web.FileResponse('./templates/index.html')
-
-async def perform_chank_save(chunk):
-    print("perform chank")
-    audio_data = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,
-            chunk.sample_width)
-    # text = recognizer.recognize_google(audio_data)
-    file_name="speach-"+str(time.time())+".webm"
-    voice.Trnscriber.save_audio_from_audio_data(audio_data,file_name+".wav")
-    return "file saved"
-
-async def perform_chank(chunk):
-    print("perform chank")
-    audio_data = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,
-            chunk.sample_width)
-    # text = recognizer.recognize_google(audio_data)
-    replay= recognizer.recognize_whisper(audio_data,language='he')
-    return replay 
-    # return " perform_chank exit"
-    # callback(recognizer.recognize_whisper(audio_data,language='he'))
-
-
-
-# async def execute_blocking_whisper_prediction1(model: WhisperModel, audio_data:sr.AudioData) -> str:
-#     audio_data_array: np.ndarray = np.frombuffer(audio_data.get_wav_data(convert_rate=16000), np.int16).astype(np.float32) / 255.0
-#     segments, _ = model.transcribe(audio_data_array,
-#                                    language=LANGUAGE_CODE,
-#                                    beam_size=5,
-#                                    vad_filter=VAD_FILTER,
-#                                    vad_parameters=dict(min_silence_duration_ms=1000))
-#     segments = [s.text for s in segments]
-#     transcription = " ".join(segments)
-#     transcription = transcription.strip()
-#     return transcription
 
 
 @routes.post('/request_post_test')
@@ -161,42 +103,26 @@ async def post_handler_test(request):
 async def predict_handler(request):
     wav_data: bytes = await request.content.read()
     try:
-        # print(audio_data_array)
-        # Run the prediction on the audio data
-
-        # data=voice.Trnscriber.get_wav_data_from_audio_data(data,convert_rate=16000)
         
-         # data = audio.get_wav_data()
-        # segment = AudioSegment._from_safe_wav(data)
         segment =AudioSegment.from_wav(BytesIO(wav_data))
         # segment = AudioSegment._from_safe_wav(data)
         # play(segment)
         
         #closed temprory
-        audio_data = labSpeachrecognitionImpl.AudioData(segment.raw_data, segment.frame_rate,
+        audio = labSpeachrecognitionImpl.AudioData(segment.raw_data, segment.frame_rate,
                                segment.sample_width)
         
         # audio_data = voice.Trnscriber.get_audio_data_from_wav_data(data)
-            
-        result = await perform_chank( segment)
-        return web.json_response({"prediction":str(result)})
-    
-        # result = await asyncio.get_running_loop().run_in_executor(None, perform_chank, segment)
-        # result = await asyncio.get_running_loop().run_in_executor(None, execute_blocking_whisper_prediction,
-        #                                                          recognizer, audio_data)
-        # with concurrent.futures.ThreadPoolExecutor() as executor:
-        #     loop = asyncio.get_event_loop()
-        #     # task = asyncio.create_task(perform_chank(segment))
-        #     result = await loop.run_in_executor(executor, perform_chank,segment)
-        #     return web.json_response({"prediction":str(result)})
-    
-        # with concurrent.futures.ThreadPoolExecutor() as executor:
-        #     loop = asyncio.get_event_loop()
-        #     # Run the long operation in the executor
-        #     result = await loop.run_in_executor(executor, perform_chank(segment))
-        #     return web.json_response({"prediction":str(result)})
         
-   
+        # #serial  
+        # result = transcribe(recognizer, audio)
+        # return web.json_response({"prediction":str(result)})
+    
+        #paralel
+        transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+        return web.json_response({"prediction":str(transcription_task.get())})
+        
+
         
     except Exception as error:
                 result = "Error"
@@ -204,14 +130,51 @@ async def predict_handler(request):
                 traceback.print_tb(error.__traceback__)
 
 
-async def index(request):
+@routes.get('/test')
+async def test(request):
    return web.FileResponse('./templates/index_test.html')
 
 
-async def handler(request):
-    return web.Response()
+#index
+async def index(request):
+    return web.FileResponse('./templates/index.html')
+   
 
 
+# Audio settings
+LENGHT_IN_SEC: int = 30    # We'll process this amount of audio data together maximum
+# STEP_IN_SEC: int = 1    # We'll increase the processable audio data by this
+# LENGHT_IN_SEC: int = 15    # We'll process this amount of audio data together maximum
+# NB_CHANNELS = 1
+# RATE = 16000
+# CHUNK = RATE
+# # Visualization (expected max number of characters for LENGHT_IN_SEC audio)
+# MAX_SENTENCE_CHARACTERS = 80
+
+
+pool = None
+method_name=None
+
+
+def init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+def transcribe(recognizer,audio):
+    try:
+        transcription_start_time = time.time()
+        file_name="save_webm_"+str(transcription_start_time) +".wav"
+        voice.Trnscriber.save_audio_from_audio_data(audio,file_name)
+        # transcription="test"
+        if method_name is None:
+            transcription=recognizer.recognize_Transformer(audio,language='he')
+        else:
+            method = getattr(recognizer, method_name)
+            transcription= method(audio,language='he')
+        return transcription
+    except (LookupError,sr.exceptions.UnknownValueError):
+        print("Oops! Didn't catch that")
+        return "Oops! Didn't catch that"
+    
 
 async def websocket_handler(request):
 
@@ -244,94 +207,24 @@ async def websocket_handler(request):
         else:
             print(msg,msg.data)
 
-    # print('websocket connection closed')
+    print('websocket connection closed')
 
-    # return ws
+    return ws
 
-async def process_incoming_audio_messages(ws):
-    async for msg in ws:
+# async def process_incoming_audio_messages(ws):
+#     async for msg in ws:
         
-        print(msg.data)
-        message="onopen"
-        await ws.send_str(message)
+#         print(msg.data)
+#         message="onopen"
+#         await ws.send_str(message)
 
 
-def perform_audio_data(b_data):
-    
-    
-    try:
-        return voice.Trnscriber.get_audio_data_from_wav_data(b_data)
-        
-            
-            
-    except Exception as e:
-        raise Exception(f'Could not process audio: {e}')
-
-
-
-
-
-async def  perform_webm_save_webm(ws,msg):
-    print("perform_webm")
-    opus_data = BytesIO(msg.data)
-    transcription_time = time.time()
-    file_name="speach-"+str(transcription_time)+".webm"
-    print("open file")
-    with open(file_name, 'wb') as f:
-        data_all=msg.data
-        f.write(data_all)
-        opus_data.write(data_all)
-        while True:
-            msg = await ws.receive()
-            if msg.type == web.WSMsgType.BINARY:
-                data_all=msg.data
-                f.write(data_all)
-                opus_data.write(data_all)
-            else:
-                print("break")
-                break
-    # opus_data.seek(0)
-    # segment = AudioSegment.from_file(opus_data,format="webm")
-    # audio_data = labSpeachrecognitionImpl.AudioData(segment.raw_data, segment.frame_rate,
-    #                            segment.sample_width)
-    # voice.Trnscriber.save_audio_from_audio_data(audio_data,file_name+".wav")
-    
-async def  perform_webm_save_wav(ws,msg):
-    print("perform_webm")
-    opus_data = io.BytesIO(msg.data)
-    data_all=msg.data
-    opus_data.write(data_all)
-    while True:
-        msg = await ws.receive()
-        if msg.type == web.WSMsgType.BINARY:
-            data_all=msg.data
-            opus_data.write(data_all)
-        else:
-            if msg == "stop":
-                print("stop")
-                break
-            else:
-                print("other msg",msg)
-                if msg.type == web.WSMsgType.CLOSE:
-                    print("close")
-                    await ws.close()
-                    break
-                
-    opus_data.seek(0)
-    the_segment = AudioSegment.from_file(opus_data,format="webm")
-    # silenc = silence.detect_silence(the_segment, min_silence_len=250, silence_thresh=-45)
-    # silenc = [((start/1000),(stop/1000)) for start,stop in silenc]
-    # print(silenc)
-    
-    audio_data = labSpeachrecognitionImpl.AudioData(the_segment.raw_data, the_segment.frame_rate,
-                               the_segment.sample_width)
-    file_name="speach-"+str(time.time())+".webm"
-    voice.Trnscriber.save_audio_from_audio_data(audio_data,file_name+".wav")
 
 def getSilenceStartStopTime(audio):
-    silenc = silence.detect_nonsilent(audio, min_silence_len=250, silence_thresh=-45)
+    silenc = silence.detect_nonsilent(audio, min_silence_len=250, silence_thresh=-50,seek_step=125)
     # silenc = [((start/1000),(stop/1000)) for start,stop in silenc]
-    silenc = [((start),(stop+100)) for start,stop in silenc]
+    # silenc = [((start),(stop)) for start,stop in silenc]
+    silenc = [(start, stop) for start, stop in silenc if stop - start >= SILENCE_DELETE_SEC*1000]
     print(silenc)
     return silenc
 
@@ -339,9 +232,7 @@ def getSilenceStartStopTime(audio):
     
 async def  perform_webm(ws,msg):
     usedElements = []
-    pool = multiprocessing.Pool(processes=10) # limit to 10 processes
-    transcription_tasks = [] 
-    queue = asyncio.Queue()
+    last_element = None
     print("perform_webm start")
     # data_all=b""
     opus_data = io.BytesIO()
@@ -357,75 +248,79 @@ async def  perform_webm(ws,msg):
             # audio_data = opus_data.read()
             the_segment = AudioSegment.from_file(opus_data,format="webm")
             silence_times = getSilenceStartStopTime(the_segment)
-           
-            if len(silence_times) > 1 and silence_times[-2] not in usedElements:
-                (start_time, stop_time)=silence_times[-2]
-                chunk = the_segment[start_time:stop_time]
-                try:
-                    print("perform chank",start_time, stop_time)
-                    
-                    # result = await perform_chank(chunk)
-                    
-                    # result = await asyncio.get_running_loop().run_in_executor(None, perform_chank, segment)
-                    # audio_data = labSpeachrecognitionImpl.AudioData(chunk.raw_data, the_segment.frame_rate,
-                    #         the_segment.sample_width)
-                    
-                    # text = recognizer.recognize_google(audio_data)
-                    
-                    # #paralel perform
-                    # transcription_task = pool.apply_async(perform_chank, (chunk,) )#, callback=print_result)
-                    # transcription_tasks.append(transcription_task)
-                    # transcription_task=transcription_tasks[0]
-                    # if(transcription_task.ready()):
-                    #     await ws.send_str(str(transcription_task.get()) )  
-                    #     transcription_tasks.remove(transcription_task)
+            if len(silence_times) >= 1:
+                if  last_element==silence_times[-1] and last_element not in usedElements:
+                    last_element=silence_times[-1]
+                    (start_time, stop_time)=last_element
+                    chunk = the_segment[start_time:stop_time]
+                    try:
+                        print("perform chank",start_time, stop_time)
+                        audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
+                        # #paralel perform
+                        transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+                        transcription_tasks.append(transcription_task)
+                        transcription_task=transcription_tasks[0]
+                        if(transcription_task.ready()):
+                            transcription=str(transcription_task.get(timeout=1)) 
+                            print("recive trans:",get_display(transcription))
+                            await ws.send_str(str(transcription) ) 
+                            print("sent to client")
+                            if transcription_task in transcription_tasks :
+                                print("remove",transcription_task)
+                                transcription_tasks.remove(transcription_task)
 
-                    #serial perform
-                    await ws.send_str(str(await perform_chank(chunk)) ) 
-                    
-                    
-    
-                    # transcription_task = asyncio.create_task(perform_chank(chunk))
-                    # await queue.put(transcription_task)
-                    # # done_task = await asyncio.wait([queue.get()])
-                    # done_task, _ = await asyncio.wait_for(queue.get(), timeout=1)
-                    # done_transcribtion = done_task.result()
-                    # # done_transcribtion = done_task[0].result()
-                    # await ws.send_str(str(done_transcribtion) ) 
-                    
-                    # perform_chank_ws(chunk,ws) 
-                    # await ws.send_str(str(result) ) 
-                    # opus_data.seek(0)
-                    # opus_data.truncate(0)
-                except Exception as e:
-                    print(f"Error while printing transcription: {e}")
-                    # traceback.print_exc()
-                    # raise  e
-                usedElements.append(silence_times[-2])
+                    except Exception as e:
+                        print(f"Error while printing transcription: {e}")
+                        traceback.print_exc()
+                        raise  e
+                    usedElements.append(last_element)
+                else:
+                    last_element=silence_times[-1]       
+            # if len(silence_times) > 1 and silence_times[-2] not in usedElements:
+            #     (start_time, stop_time)=silence_times[-2]
+            #     chunk = the_segment[start_time:stop_time]
+            #     try:
+            #         print("perform chank",start_time, stop_time+150)
+            #         audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
+            #         # #paralel perform
+            #         transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+            #         transcription_tasks.append(transcription_task)
+            #         transcription_task=transcription_tasks[0]
+            #         if(transcription_task.ready()):
+            #             transcription=str(transcription_task.get(timeout=1)) 
+            #             print("recive trans:",get_display(transcription))
+            #             await ws.send_str(str(transcription) ) 
+            #             print("sent to client")
+            #             if transcription_task in transcription_tasks :
+            #                 print("remove",transcription_task)
+            #                 transcription_tasks.remove(transcription_task)
+
+            #     except Exception as e:
+            #         print(f"Error while printing transcription: {e}")
+            #         traceback.print_exc()
+            #         raise  e
+            #     usedElements.append(silence_times[-2])
         else:
             if msg.data == 'stop':
                 print("stop")
                 silence_times = getSilenceStartStopTime(the_segment)
-                (start_time, stop_time)=silence_times[-1]
-                print("perform chank",start_time)
-                chunk = the_segment[start_time:]
-                
-                # #paralel perform
-                # transcription_task = pool.apply_async(perform_chank, (chunk,) )#, callback=print_result)
-                # transcription_tasks.append(transcription_task)
-                # transcription_task=transcription_tasks[0]
-                # if(transcription_task.ready()):
-                #     await ws.send_str(str(transcription_task.get()) )  
-                #     transcription_tasks.remove(transcription_task)
-
-                #serial perform
-                await ws.send_str(str(await perform_chank(chunk)) ) 
-                    
-                
-                # result = await asyncio.get_running_loop().run_in_executor(None, perform_chank, chunk)
-                
-                # task = asyncio.create_task(perform_chank_ws(chunk,ws) )  
-                
+                if last_element!=silence_times[-1]:
+                    (start_time, stop_time)=silence_times[-1]
+                    print("perform chank",start_time)
+                    chunk = the_segment[start_time:]
+                    audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
+                    transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+                    transcription_tasks.append(transcription_task)
+                        
+                for transcription_task in transcription_tasks:
+                    transcription_task.wait() # wait for the task to complete
+                    transcription=str(transcription_task.get(timeout=1)) 
+                    print("recive trans:",get_display(transcription))
+                    await ws.send_str(str(transcription) ) 
+                    print("sent to client")
+                    if transcription_task in transcription_tasks :
+                        print("remove",transcription_task)
+                        transcription_tasks.remove(transcription_task)
                 
                 break
             else:
@@ -434,16 +329,15 @@ async def  perform_webm(ws,msg):
                     print("close")
                     await ws.close()
                     break
+                
+    
+
 
 async def audio_handler(request):
     
     ws = web.WebSocketResponse()
     await ws.prepare(request) 
-   
-    # buf = io.BytesIO()
-    # bufferLenth=0
-        
-    # audio_data = b''
+
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
             if msg.data == "stop":
@@ -463,27 +357,24 @@ async def audio_handler(request):
         if msg.type == web.WSMsgType.BINARY:
             print("in binary")
             await perform_webm(ws,msg)
-            
-        
+               
     return ws
-        
-        
-
-app = web.Application()
-app.router.add_get('/', index)
-app.add_routes(routes)
-# app.add_routes([web.get('/ws', websocket_handler)])
-app.router.add_route('GET', '/echo', websocket_handler)
-app.router.add_route('GET', '/listen', audio_handler)
-# app.router.add_route('GET', '/predict',prediction_handler)
-web.run_app(app,host='localhost')
 
 
+def main():
+    method_name="recognize_google"
+    app = web.Application()
+    app.router.add_get('/', index)
+    app.add_routes(routes)
+    # app.add_routes([web.get('/ws', websocket_handler)])
+    app.router.add_route('GET', '/echo', websocket_handler)
+    app.router.add_route('GET', '/listen', audio_handler)
+    # app.router.add_route('GET', '/predict',prediction_handler)
+    web.run_app(app,host='localhost')
+    
+    
 
-
-
-    # async with ClientSession().ws_connect('http://0.0.0.0:8080/ws') as ws:
-    #     await asyncio.gather(
-    #         run_client(ws),
-    #         promt(ws)
-    #     )
+if __name__ == "__main__":
+    pool = multiprocessing.Pool(initializer=init_worker,processes=20) # limit to 10 processes
+    main()
+    

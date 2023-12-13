@@ -28,7 +28,7 @@ from gtts import gTTS
 import pyttsx3
 import objc
 # import pygame
-from pydub import AudioSegment
+
 
 from pydub.playback import play
 
@@ -61,6 +61,7 @@ import wave
 import speech_recognition as sr
 import soundfile as sf
 from bidi.algorithm import get_display
+import fleep
 
 
 load_dotenv()
@@ -80,7 +81,10 @@ openai.api_key =os.getenv('OPENAI_API_KEY')
 #         return result
 #     return wrapper
 
-
+class AudioUtilityes():
+    def __init__(self):
+        pass
+                
 class VoiceGenerator():
     def __init__(self, modelType=1):
         self.ttsVoices = {}
@@ -185,17 +189,35 @@ class Trnscriber(ABC):
     def getVoiceFile(self,audioname, recordFormat):
         return open(self.getVoiceFilePath(audioname, recordFormat), "rb")
 
-    def get_audio_record_format(self,orgfile):
-        info = magic.from_file(orgfile).lower()
-        print(f'\n\n Recording file info is:\n {info} \n\n')
-        if 'webm' in info:
-            return '.webm'
-        elif 'iso media' in info:
-            return '.mp4'
-        elif 'wave' in info:
-            return '.wav'
+    # def get_audio_record_format(self,orgfile):
+    #     info = magic.from_file(orgfile).lower()
+    #     print(f'\n\n Recording file info is:\n {info} \n\n')
+    #     if 'webm' in info:
+    #         return '.webm'
+    #     elif 'iso media' in info:
+    #         return '.mp4'
+    #     elif 'wave' in info:
+    #         return '.wav'
+    #     else:
+    #         return '.mp4'
+        
+    @staticmethod
+    def check_and_convert(filename, supported_formats=['wav', 'aiff', 'aifc', 'flac']):
+        # Check the file format
+        with open(filename, "rb") as file:
+            info = fleep.get(file.read(128))
+            file_format = info.extension[0]
+        
+        # print("file_format",file_format)
+        # If the file format is not supported, convert it
+        if file_format not in supported_formats:
+            audio = AudioSegment.from_file(filename, format=file_format)
+            new_file_name=filename+'wav'
+            # new_file_name="output.wav"
+            audio.export(new_file_name, format='wav')
+            return new_file_name
         else:
-            return '.mp4'
+            return filename
     @staticmethod
     def segment(file_path,segment_file_path,minuts_from=0,minutes_to=10):
         song = AudioSegment.from_mp3(file_path)
@@ -307,13 +329,15 @@ class Trnscriber(ABC):
 
 
 class WhisperAsrTrnscriber(Trnscriber):
-    def __init__(self, modelType="small",in_memory=True):#"large-v2"):
+    # def __init__(self, modelType="small",in_memory=True):#"large-v2"):
+    def __init__(self, modelType="large-v3",in_memory=True):#"large-v2"):
         # setup asr engine
             self.asrmodel =  whisper.load_model(name=modelType, download_root='asrmodel' ,in_memory=in_memory)
 
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :  
         print("audio.name",audio_file_path,'Language',language)
+        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
         audio = Trnscriber.get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
@@ -338,7 +362,8 @@ class WhisperAsrTrnscriber(Trnscriber):
 
 
 class WhisperRegTrnscriber(Trnscriber):
-    def __init__(self,modelType='small',in_memory=True):#'large-v2'):
+    # def __init__(self,modelType='small',in_memory=True):#'large-v2'):
+    def __init__(self,modelType='large-v3',in_memory=True):#'large-v2'): 
         # setup asr engine  
         print("init")
         self.model = whisper.load_model(name=modelType,download_root="asrmodel",in_memory=in_memory)
@@ -382,6 +407,7 @@ class WhisperRegTrnscriber(Trnscriber):
         import soundfile as sf
         from io import BytesIO
         
+        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
         audio = Trnscriber.getfileStreamWisper(audio_file_path)
         
         return self.transcribeLang(audio,language)
@@ -429,6 +455,7 @@ class OpenAITrnscriber(Trnscriber):
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :  
         # print("audio.name",audio_file_path,'Language',language)
+        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
         audio_file= open(audio_file_path, "rb")
         
         
@@ -502,7 +529,8 @@ class TransformersTrnscriber(Trnscriber):
    
     
     # def __init__(self,modelType='openai/whisper-small'):#'openai/whisper-large-v3'):
-    def __init__(self,modelType='openai/whisper-base'):#'openai/whisper-large-v3'):
+    def __init__(self,modelType='openai/whisper-large-v3'):
+    # def __init__(self,modelType='openai/whisper-base'):#'openai/whisper-large-v3'):
         # setup engine if need
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
@@ -520,6 +548,7 @@ class TransformersTrnscriber(Trnscriber):
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :
         
+        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
         audio = Trnscriber.getfileStreamWisper(audio_file_path)
         
         return self.transcribeLang(audio,language)
@@ -697,7 +726,7 @@ class QuickWhisperTrnscriber(Trnscriber):
         # new_wav_file_path=str(audio_file_path)+".wav"
         # # Export as WAV
         # sound.export(new_wav_file_path, format="wav")
-        
+        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
         audio=self.read_wav_file(audio_file_path)
 
         
@@ -742,7 +771,8 @@ class fasterWhisperTrnscriber_not_work(Trnscriber):
                             download_root="./models")
 
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :
-    
+        
+        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
         audio = Trnscriber.getfileStreamWisper(audio_file_path)
         
         return self.transcribeLang(audio,language)
@@ -805,13 +835,18 @@ if __name__ == '__main__':
     # exit()
     # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.wav'
     # filename='/Users/dmitryshlymovich/workspace/wisper/tmp/voice-assistant-chatgpt/recording.tmp.mp4'
-    filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/save_1702280862.193871.wav'
+    # filename='/Users/dmitryshlymovich/Downloads/Recording_erez.m4a'
+    # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/output.wav'
+    filename='/Users/dmitryshlymovich/Downloads/sentence_two.wav'
+        
     # filename=speech_file_path
     # print(ask)
-    instances = [WhisperAsrTrnscriber(),WhisperRegTrnscriber(),TransformersTrnscriber(),OpenAITrnscriber()]
+    # instances = [WhisperAsrTrnscriber(),WhisperRegTrnscriber(),TransformersTrnscriber(),OpenAITrnscriber()]
     # instances=[QuickWhisperTrnscriber()]
     # instances=[QuickWhisperTrnscriber()]
     # instances=[WhisperRegTrnscriber()]
+    instances = [WhisperAsrTrnscriber(),WhisperRegTrnscriber(),TransformersTrnscriber(),OpenAITrnscriber()]
+    
 
     @utility.timing_decorator
     def check_transcriber_file(transcriber,filename):
@@ -827,7 +862,8 @@ if __name__ == '__main__':
         
         # audio=transcriber.getVoiceFile( filename, "")
         transcription_result, languageCode = transcriber.transcribeADLang(audio,language='he')
-        print('1',transcriber.__class__.__name__,get_display(transcription_result), languageCode)
+        print(transcriber.__class__.__name__,get_display(transcription_result), languageCode)
+        print("regular",transcriber.__class__.__name__,(transcription_result), languageCode)
         # print(find_string_differences_html(ask,transcription_result))
         # vg.speak_to_file(ask)
         
@@ -836,7 +872,7 @@ if __name__ == '__main__':
         audio=instance.load_audioSource_from_file(filename)
         # VoiceGenerator().play(audio)
         try:
-            for i in range(3):
+            # for i in range(3):
                 check_transcriber(instance,audio)
     
         except Exception as e:

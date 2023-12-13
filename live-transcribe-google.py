@@ -1,12 +1,10 @@
 
 import speech_recognition as sr
 import os ,time
-import voice,labSpeachrecognitionImpl
+import voice #,labSpeachrecognitionImpl
 from typing import Dict, List
 import numpy as np
 from bidi.algorithm import get_display
-
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import multiprocessing
 import signal
 
@@ -14,11 +12,9 @@ import signal
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 transcription_tasks=[]
-
-
 # Audio settings
 STEP_IN_SEC: int = 1    # We'll increase the processable audio data by this
-LENGHT_IN_SEC: int = 29    # We'll process this amount of audio data together maximum
+LENGHT_IN_SEC: int = 6    # We'll process this amount of audio data together maximum
 NB_CHANNELS = 1
 RATE = 16000
 CHUNK = RATE
@@ -28,7 +24,6 @@ MAX_SENTENCE_CHARACTERS = 80
 stats: Dict[str, List[float]] = {"overall": [], "transcription": [], "postprocessing": []}
 
 pool = None
-method_name=None
 
 def init_worker():
    signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -36,15 +31,11 @@ def init_worker():
 def transcribe(recognizer,audio):
     try:
         transcription_start_time = time.time()
-        file_name="save_reg_"+str(transcription_start_time) +".wav"
+        file_name="save_google_"+str(transcription_start_time) +".wav"
         voice.Trnscriber.save_audio_from_audio_data(audio,file_name)
         # transcription="test"
-        if method_name is None:
-            transcription=recognizer.recognize_Transformer(audio,language='he')
-        else:
-            method = getattr(recognizer, method_name)
-            transcription= method(audio,language='he')
-               
+        transcription=recognizer.recognize_google(audio,language='he')
+                
         transcription_postprocessing_end_time = time.time()
         # print(get_display(transcription))
         transcription_end_time = time.time()
@@ -78,14 +69,31 @@ def callbackFunc(recognizer,audio):                          # this is called fr
             
             # cerial
             # transcription=transcribe(recognizer,audio,transcription_start_time)
-    
+            
+            # transcription = " ".join(segments)
+            
+            # remove anything from the text which is between () or [] --> these are non-verbal background noises/music/etc.
+            # transcription = re.sub(r"\[.*\]", "", transcription)
+            # transcription = re.sub(r"\(.*\)", "", transcription)
+            # We do this for the more clean visualization (when the next transcription we print would be shorter then the one we printed)
+            # transcription = transcription.ljust(MAX_SENTENCE_CHARACTERS, " ")
+
+            # transcription_postprocessing_end_time = time.time()
+
+            # print(transcription, end='\r', flush=True)
+
+            
+                    
+                    # print("You said " + recognizer.recognize_whisper(audio,language='he'))  # received audio data, now need to recognize it
+  
+            
             
             
 def use_mic_on_background(runlenth):
     
     
-    r = labSpeachrecognitionImpl.LabRecognizer()
-    m = labSpeachrecognitionImpl.Microphone()
+    r = sr.Recognizer()
+    m = sr.Microphone()
     with m as source:
         # r.energy_threshold = 270
         
@@ -97,8 +105,6 @@ def use_mic_on_background(runlenth):
 
     # start listening in the background (note that we don't have to do this inside a `with` statement)
     stop_listening = r.listen_in_background(source=m, callback=callbackFunc,phrase_time_limit=LENGHT_IN_SEC)
-    # stop_listening = r.listen_in_background(source=m, callback=callbackFunc)
-    
     # do some unrelated computations for runlenth seconds
     
     try:
@@ -137,8 +143,6 @@ def use_mic_on_background(runlenth):
 
 def main():
     runlenth=25
-    # method_name="recognize_google"
-    # method_name="recognize_whisper"
     use_mic_on_background(runlenth)
 
 if __name__ == "__main__":
