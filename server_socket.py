@@ -1,5 +1,6 @@
 # https://www.section.io/engineering-education/how-to-set-up-a-python-web-socket-with-aiohttp/
 
+from pathlib import Path,PosixPath
 from aiohttp import web
 import aiohttp
 import concurrent.futures
@@ -17,6 +18,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 from pydub import AudioSegment, silence
+import json
 
 
 import speech_recognition as sr
@@ -112,7 +114,7 @@ async def predict_handler(request):
         audio = labSpeachrecognitionImpl.AudioData(segment.raw_data, segment.frame_rate,
                                segment.sample_width)
         
-        # audio_data = voice.Trnscriber.get_audio_data_from_wav_data(data)
+        # audio_data = voice.Transcriber.get_audio_data_from_wav_data(data)
         
         # #serial  
         # result = transcribe(recognizer, audio)
@@ -130,10 +132,34 @@ async def predict_handler(request):
                 traceback.print_tb(error.__traceback__)
 
 
+@routes.post('/say')
+async def say_handler(request):
+    print("say")
+    try:
+        
+        data = await request.json()
+        print(data)
+        answer = data.get('say')
+        speech_file_path = Path(__file__).parent / "speech.mp3"
+    
+        vg=voice.VoiceGenerator()
+        vg.speak_to_file_openai(answer,speech_file_path)
+        # vg.speak_to_file_google(answer,speech_file_path)
+
+        
+        # # Return the wav file as a response
+        return web.FileResponse(speech_file_path)
+
+        
+    except Exception as error:
+                result = "Error"
+                print("An error occurred while performing recognition:", type(error).__name__, "–", error) # An error occurred: NameError – name 'x' is not defined
+                traceback.print_tb(error.__traceback__)
+
+
 @routes.get('/test')
 async def test(request):
    return web.FileResponse('./templates/index_test.html')
-
 
 #index
 async def index(request):
@@ -163,10 +189,12 @@ def transcribe(recognizer,audio):
     try:
         transcription_start_time = time.time()
         file_name="save_webm_"+str(transcription_start_time) +".wav"
-        voice.Trnscriber.save_audio_from_audio_data(audio,file_name)
+        voice.Transcriber.save_audio_from_audio_data(audio,file_name)
         # transcription="test"
         if method_name is None:
-            transcription=recognizer.recognize_Transformer(audio,language='he')
+            transcription=recognizer.recognize_openAI(audio,language='he')
+            # transcription=recognizer.recognize_Transformer(audio,language='he')
+            # transcription=recognizer.recognize_azure(audio,language='he-IL',key=os.environ.get('MICROSOFT_SPEACH_TO_TEXT_API_KEY'),location=os.environ.get('MICROSOFT_SPEACH_TO_TEXT_SPEECH_REGION'))
         else:
             method = getattr(recognizer, method_name)
             transcription= method(audio,language='he')
@@ -176,40 +204,40 @@ def transcribe(recognizer,audio):
         return "Oops! Didn't catch that"
     
 
-async def websocket_handler(request):
+# async def websocket_handler(request):
 
-    print('Websocket connection starting')
-    ws = aiohttp.web.WebSocketResponse()
-    await ws.prepare(request)
-    print('Websocket connection ready')
+#     print('Websocket connection starting')
+#     ws = aiohttp.web.WebSocketResponse()
+#     await ws.prepare(request)
+#     print('Websocket connection ready')
 
-    # await asyncio.gather(
-    #         close_handler(ws),
-    #         stream_handler(ws)
-    #     )
+#     # await asyncio.gather(
+#     #         close_handler(ws),
+#     #         stream_handler(ws)
+#     #     )
 
-    async for msg in ws:
-        if msg.type == aiohttp.WSMsgType.TEXT:
-            if msg.data == 'close':
-                print("close")
-                await ws.close()
-            else:
-                print(msg,msg.data)
-                print("replay sent")
-                await ws.send_str(msg.data + '/answer')
-        elif msg.type == aiohttp.WSMsgType.ERROR:
-            print('ws connection closed with exception %s' %
-                  ws.exception())
-        elif msg.type == aiohttp.WSMsgType.BINARY:
-            print(msg,msg.data)
-            message="onopen"
-            await ws.send_str(message)
-        else:
-            print(msg,msg.data)
+#     async for msg in ws:
+#         if msg.type == aiohttp.WSMsgType.TEXT:
+#             if msg.data == 'close':
+#                 print("close")
+#                 await ws.close()
+#             else:
+#                 print(msg,msg.data)
+#                 print("replay sent")
+#                 await ws.send_str(msg.data + '/answer')
+#         elif msg.type == aiohttp.WSMsgType.ERROR:
+#             print('ws connection closed with exception %s' %
+#                   ws.exception())
+#         elif msg.type == aiohttp.WSMsgType.BINARY:
+#             print(msg,msg.data)
+#             message="onopen"
+#             await ws.send_str(message)
+#         else:
+#             print(msg,msg.data)
 
-    print('websocket connection closed')
+#     print('websocket connection closed')
 
-    return ws
+#     return ws
 
 # async def process_incoming_audio_messages(ws):
 #     async for msg in ws:
@@ -228,9 +256,27 @@ def getSilenceStartStopTime(audio):
     print(silenc)
     return silenc
 
+async def  checkTask(transcription_task,ws):
+    
+    if(transcription_task.ready()):
+        transcription=str(transcription_task.get(timeout=0.1)) 
+        print("recive trans:",get_display(transcription))
+        await ws.send_str(str(transcription) ) 
+        print("sent to client")
+        if transcription_task in transcription_tasks :
+            print("remove",transcription_task)
+            transcription_tasks.remove(transcription_task)
+
+def is_json(myjson):
+   try:
+       json_object = json.loads(myjson)
+   except ValueError as e:
+       return False
+   return True
 
     
-async def  perform_webm(ws,msg):
+
+async def  perform_webm(ws,msg,nearRealTime):
     usedElements = []
     last_element = None
     print("perform_webm start")
@@ -244,85 +290,73 @@ async def  perform_webm(ws,msg):
         if msg.type == web.WSMsgType.BINARY:
             data_all=msg.data
             opus_data.write(data_all)
-            opus_data.seek(0)
-            # audio_data = opus_data.read()
-            the_segment = AudioSegment.from_file(opus_data,format="webm")
-            silence_times = getSilenceStartStopTime(the_segment)
-            if len(silence_times) >= 1:
-                if  last_element==silence_times[-1] and last_element not in usedElements:
-                    last_element=silence_times[-1]
-                    (start_time, stop_time)=last_element
-                    chunk = the_segment[start_time:stop_time]
-                    try:
-                        print("perform chank",start_time, stop_time)
+            if ( nearRealTime): 
+                opus_data.seek(0)
+                # audio_data = opus_data.read()
+                the_segment = AudioSegment.from_file(opus_data,format="webm")
+                silence_times = getSilenceStartStopTime(the_segment)
+                if len(silence_times) >= 1:
+                    await checkTask(transcription_tasks[0],ws)
+                    if  last_element==silence_times[-1] and last_element not in usedElements:
+                        last_element=silence_times[-1]
+                        (start_time, stop_time)=last_element
+                        chunk = the_segment[start_time:stop_time]
+                        try:
+                            print("perform chank",start_time, stop_time)
+                            audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
+                            # #paralel perform
+                            print("added task 1")
+                            transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+                            transcription_tasks.append(transcription_task)
+                            
+
+                        except Exception as e:
+                            print(f"Error while printing transcription: {e}")
+                            traceback.print_exc()
+                            raise  e
+                        usedElements.append(last_element)
+                    else:
+                        last_element=silence_times[-1]  
+            else:
+                pass   
+        else:
+            if msg.data  == 'stop': 
+                # Handle stop operation
+                print("Stop operation")
+                    
+                if ( nearRealTime):
+                    silence_times = getSilenceStartStopTime(the_segment)
+                    if  len(silence_times) >= 1 and last_element!=silence_times[-1]:
+                        (start_time, stop_time)=silence_times[-1]
+                        print("perform chank",start_time)
+                        chunk = the_segment[start_time:]
                         audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
-                        # #paralel perform
+                        print("added task 2")
                         transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
                         transcription_tasks.append(transcription_task)
-                        transcription_task=transcription_tasks[0]
-                        if(transcription_task.ready()):
-                            transcription=str(transcription_task.get(timeout=1)) 
-                            print("recive trans:",get_display(transcription))
-                            await ws.send_str(str(transcription) ) 
-                            print("sent to client")
-                            if transcription_task in transcription_tasks :
-                                print("remove",transcription_task)
-                                transcription_tasks.remove(transcription_task)
-
-                    except Exception as e:
-                        print(f"Error while printing transcription: {e}")
-                        traceback.print_exc()
-                        raise  e
-                    usedElements.append(last_element)
-                else:
-                    last_element=silence_times[-1]       
-            # if len(silence_times) > 1 and silence_times[-2] not in usedElements:
-            #     (start_time, stop_time)=silence_times[-2]
-            #     chunk = the_segment[start_time:stop_time]
-            #     try:
-            #         print("perform chank",start_time, stop_time+150)
-            #         audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
-            #         # #paralel perform
-            #         transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
-            #         transcription_tasks.append(transcription_task)
-            #         transcription_task=transcription_tasks[0]
-            #         if(transcription_task.ready()):
-            #             transcription=str(transcription_task.get(timeout=1)) 
-            #             print("recive trans:",get_display(transcription))
-            #             await ws.send_str(str(transcription) ) 
-            #             print("sent to client")
-            #             if transcription_task in transcription_tasks :
-            #                 print("remove",transcription_task)
-            #                 transcription_tasks.remove(transcription_task)
-
-            #     except Exception as e:
-            #         print(f"Error while printing transcription: {e}")
-            #         traceback.print_exc()
-            #         raise  e
-            #     usedElements.append(silence_times[-2])
-        else:
-            if msg.data == 'stop':
-                print("stop")
-                silence_times = getSilenceStartStopTime(the_segment)
-                if last_element!=silence_times[-1]:
-                    (start_time, stop_time)=silence_times[-1]
-                    print("perform chank",start_time)
-                    chunk = the_segment[start_time:]
-                    audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
-                    transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
-                    transcription_tasks.append(transcription_task)
-                        
-                for transcription_task in transcription_tasks:
-                    transcription_task.wait() # wait for the task to complete
-                    transcription=str(transcription_task.get(timeout=1)) 
-                    print("recive trans:",get_display(transcription))
-                    await ws.send_str(str(transcription) ) 
-                    print("sent to client")
-                    if transcription_task in transcription_tasks :
-                        print("remove",transcription_task)
-                        transcription_tasks.remove(transcription_task)
+                            
+                    for transcription_task in transcription_tasks:
+                        transcription_task.wait() # wait for the task to complete
+                        await checkTask(transcription_task,ws)
+                    
+                    break
                 
+                else:
+                    opus_data.seek(0)
+                    # audio_data = opus_data.read()
+                    the_segment = AudioSegment.from_file(opus_data,format="webm")
+                    audio = labSpeachrecognitionImpl.AudioData(the_segment.raw_data, the_segment.frame_rate,the_segment.sample_width)
+                    transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+                    print("added task 3")
+                    await ws.send_str(str(transcription_task.get()) ) 
+                    print("finished task 3")
+                    
                 break
+                    
+                                    
+            # if msg.data == 'stop':
+                # print("stop")
+                
             else:
                 print("other msg",msg)
                 if msg.type == web.WSMsgType.CLOSE:
@@ -333,32 +367,49 @@ async def  perform_webm(ws,msg):
     
 
 
-async def audio_handler(request):
-    
-    ws = web.WebSocketResponse()
-    await ws.prepare(request) 
+def is_json(myjson):
+   try:
+       json_object = json.loads(myjson)
+   except ValueError as e:
+       return False
+   return True
 
-    async for msg in ws:
-        if msg.type == aiohttp.WSMsgType.TEXT:
-            if msg.data == "stop":
-                pass
-            elif msg.data == "start":
-                await perform_webm(ws,None)
-            elif msg.data == 'close':
-                print("close")
-                await ws.close()
-            else:
-                print(msg,msg.data)
-                print("replay sent")
-                await ws.send_str(msg.data + '/answer')
-        elif msg.type == aiohttp.WSMsgType.ERROR:
-            print('ws connection closed with exception %s' %
-                    ws.exception())
-        if msg.type == web.WSMsgType.BINARY:
-            print("in binary")
-            await perform_webm(ws,msg)
-               
-    return ws
+async def audio_handler(request):
+  ws = web.WebSocketResponse()
+  await ws.prepare(request) 
+
+  async for msg in ws:
+      if msg.type == aiohttp.WSMsgType.TEXT:
+        if is_json(msg.data):
+            data = json.loads(msg.data)
+            if 'operation' in data and data['operation'] == 'start':
+                nearRealTime = bool(data.get('nearRealTime', False))
+                # Handle start operation
+                print(f"Start operation, nearRealTime: {nearRealTime}")
+                await perform_webm(ws,None,nearRealTime)
+        elif msg.data == 'start':
+            print(f"Start operation, no json:")
+            await perform_webm(ws,None,False)
+        elif msg.data == 'close':
+            print("close")
+            await ws.close()
+        elif msg.data  == 'stop':
+            # Handle stop operation
+            print("Stop operation")
+        else:
+            print(msg,msg.data)
+            print("replay sent")
+            await ws.send_str(msg.data + '/answer')
+      elif msg.type == aiohttp.WSMsgType.ERROR:
+          print('ws connection closed with exception %s' % ws.exception())
+      if msg.type == web.WSMsgType.BINARY:
+          print("in binary")
+          await perform_webm(ws,msg,False)
+              
+  return ws
+
+
+
 
 
 def main():
@@ -375,6 +426,6 @@ def main():
     
 
 if __name__ == "__main__":
-    pool = multiprocessing.Pool(initializer=init_worker,processes=20) # limit to 10 processes
+    pool = multiprocessing.Pool(initializer=init_worker,processes=5) # limit to 10 processes
     main()
     

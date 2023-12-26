@@ -29,11 +29,11 @@ import pyttsx3
 import objc
 # import pygame
 
-
+from google.cloud import texttospeech
 from pydub.playback import play
 
 import shutil
-from pathlib import Path
+from pathlib import Path,PosixPath
 import voice
 
 import openai
@@ -93,7 +93,7 @@ class VoiceGenerator():
                 language, langCode, voiceName = line.strip().split(',')
                 self.ttsVoices[langCode.strip()] = voiceName.strip()
                 
-    def speak_to_file(self,text,speech_file_path=None,voice="alloy",model="tts-1"):
+    def speak_to_file_openai(self,text,speech_file_path=None,voice="alloy",model="tts-1"):
         if speech_file_path is None:
             speech_file_path = Path(__file__).parent / "speech.mp3"
         response = openai.audio.speech.create(
@@ -103,6 +103,49 @@ class VoiceGenerator():
         )
 
         response.stream_to_file(speech_file_path)
+        
+    def speak_to_file_google(self,text,speech_file_path=None,voice_name=None,language='he-IL',gender=texttospeech.SsmlVoiceGender.FEMALE):
+        if speech_file_path is None:
+            speech_file_path = Path(__file__).parent / "speech.mp3"
+            
+        
+
+        # Instantiates a client
+        client = texttospeech.TextToSpeechClient()
+
+        # Set the text input to be synthesized
+        synthesis_input = texttospeech.SynthesisInput(text=text)
+
+        # Build the voice request
+        if voice_name is None:
+            voice = texttospeech.VoiceSelectionParams(
+            language_code=language,
+            ssml_gender=gender
+        )
+        else:
+            voice = texttospeech.VoiceSelectionParams(
+                language_code=language,
+                name=voice_name,
+                ssml_gender=gender
+            )
+
+        # Select the type of audio file you want returned
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
+        )
+
+        # Perform the text-to-speech request on the text input with the selected
+        # voice parameters and audio file type
+        response = client.synthesize_speech(synthesis_input, voice, audio_config)
+
+        # The response's audio_content is binary.
+        with open(speech_file_path, 'wb') as out:
+        # Write the response to the output file.
+            out.write(response.audio_content)
+    
+        # print('Audio content written to file "output.mp3"')
+    
+            
         
     def audiofile_as_stream(self,speech_file_path):
         
@@ -180,7 +223,7 @@ class VoiceGenerator():
 
     
 
-class Trnscriber(ABC):
+class Transcriber(ABC):
     
 
     def getVoiceFilePath(self,audioname, recordFormat):
@@ -206,13 +249,21 @@ class Trnscriber(ABC):
         # Check the file format
         with open(filename, "rb") as file:
             info = fleep.get(file.read(128))
-            file_format = info.extension[0]
+            if info.extension:
+                file_format = info.extension[0]
+            else:
+                file_format = None # or any other default value
         
         # print("file_format",file_format)
         # If the file format is not supported, convert it
         if file_format not in supported_formats:
             audio = AudioSegment.from_file(filename, format=file_format)
-            new_file_name=filename+'wav'
+            # if isinstance(filename, PosixPath):
+            #     # filename = Path(filename)
+            #     filename=filename.as_uri
+            
+            # new_file_name = filename / 'wav'
+            new_file_name=str(filename)+'.wav'
             # new_file_name="output.wav"
             audio.export(new_file_name, format='wav')
             return new_file_name
@@ -249,6 +300,7 @@ class Trnscriber(ABC):
         except Exception as e:
             print(f"Failed to save audio: {e}")
             return False, None
+        
     @staticmethod
     def save_audio_from_audio_data(audio:sr.AudioData,file_path):
         try:
@@ -275,7 +327,7 @@ class Trnscriber(ABC):
         wav_bytes = audio_data.get_wav_data(convert_rate=16000)
         
         audio = np.frombuffer(wav_bytes, np.int16).flatten().astype(np.float32) / 32768.0
-        audio_array = whisper.pad_or_trim(audio) 
+        # audio_array = whisper.pad_or_trim(audio) 
         # print(audio)
         audio = whisper.pad_or_trim(audio)
         # print(audio)
@@ -328,7 +380,7 @@ class Trnscriber(ABC):
 
 
 
-class WhisperAsrTrnscriber(Trnscriber):
+class WhisperAsrTranscriber(Transcriber):
     # def __init__(self, modelType="small",in_memory=True):#"large-v2"):
     def __init__(self, modelType="large-v3",in_memory=True):#"large-v2"):
         # setup asr engine
@@ -336,9 +388,9 @@ class WhisperAsrTrnscriber(Trnscriber):
 
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :  
-        print("audio.name",audio_file_path,'Language',language)
-        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
-        audio = Trnscriber.get_wisper_audio_array_from_file(audio_file_path)
+        # print("audio.name",audio_file_path,'Language',language)
+        audio_file_path=Transcriber.check_and_convert(audio_file_path)
+        audio = Transcriber.get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
         
@@ -361,7 +413,7 @@ class WhisperAsrTrnscriber(Trnscriber):
   
 
 
-class WhisperRegTrnscriber(Trnscriber):
+class WhisperRegTranscriber(Transcriber):
     # def __init__(self,modelType='small',in_memory=True):#'large-v2'):
     def __init__(self,modelType='large-v3',in_memory=True):#'large-v2'): 
         # setup asr engine  
@@ -407,8 +459,9 @@ class WhisperRegTrnscriber(Trnscriber):
         import soundfile as sf
         from io import BytesIO
         
-        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
-        audio = Trnscriber.getfileStreamWisper(audio_file_path)
+        audio_file_path=Transcriber.check_and_convert(audio_file_path)
+        # audio = Transcriber.getfileStreamWisper(audio_file_path)
+        audio = Transcriber.get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
     
@@ -443,7 +496,7 @@ class WhisperRegTrnscriber(Trnscriber):
 
    
     
-class OpenAITrnscriber(Trnscriber):
+class OpenAITranscriber(Transcriber):
     
 
 
@@ -455,7 +508,7 @@ class OpenAITrnscriber(Trnscriber):
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :  
         # print("audio.name",audio_file_path,'Language',language)
-        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
+        audio_file_path=Transcriber.check_and_convert(audio_file_path)
         audio_file= open(audio_file_path, "rb")
         
         
@@ -524,13 +577,13 @@ class OpenAITrnscriber(Trnscriber):
 
 
 
-class TransformersTrnscriber(Trnscriber):
+class TransformersTranscriber(Transcriber):
     
    
     
     # def __init__(self,modelType='openai/whisper-small'):#'openai/whisper-large-v3'):
     def __init__(self,modelType='openai/whisper-large-v3'):
-    # def __init__(self,modelType='openai/whisper-base'):#'openai/whisper-large-v3'):
+    # def __init__(self,modelType='openai/whisper-small'):#'openai/whisper-large-v3'):
         # setup engine if need
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
@@ -548,8 +601,9 @@ class TransformersTrnscriber(Trnscriber):
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :
         
-        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
-        audio = Trnscriber.getfileStreamWisper(audio_file_path)
+        audio_file_path=Transcriber.check_and_convert(audio_file_path)
+        # audio = Transcriber.getfileStreamWisper(audio_file_path)
+        audio = Transcriber.get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
     
@@ -626,134 +680,134 @@ class TransformersTrnscriber(Trnscriber):
         
    
 
-class QuickWhisperTrnscriber(Trnscriber):
+# class QuickWhisperTranscriber(Transcriber):
       
-    NUM_WORKERS = 10
-    LANGUAGE_CODE = "auto"
-    CPU_THREADS = 4
-    VAD_FILTER = True
-    WHISPER_THREADS = 4
+#     NUM_WORKERS = 10
+#     LANGUAGE_CODE = "auto"
+#     CPU_THREADS = 4
+#     VAD_FILTER = True
+#     WHISPER_THREADS = 4
     
-    def __init__(self,modelType='base',compute_type="int8"):
-        # setup engine if need
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-        self.model  = WhisperModel(modelType,
-                            device=self.device,
-                            compute_type=compute_type,
-                            num_workers=self.NUM_WORKERS,
-                            cpu_threads=self.CPU_THREADS,
-                            download_root="./models")
+#     def __init__(self,modelType='base',compute_type="int8"):
+#         # setup engine if need
+#         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+#         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+#         self.model  = WhisperModel(modelType,
+#                             device=self.device,
+#                             compute_type=compute_type,
+#                             num_workers=self.NUM_WORKERS,
+#                             cpu_threads=self.CPU_THREADS,
+#                             download_root="./models")
         
-        # self.model  =WhisperModel("tiny", device="cpu", compute_type="int8", cpu_threads=self.WHISPER_THREADS, download_root="./models")
+#         # self.model  =WhisperModel("tiny", device="cpu", compute_type="int8", cpu_threads=self.WHISPER_THREADS, download_root="./models")
 
         
-    def read_wav_file(self,filename):
+#     def read_wav_file(self,filename):
         
         
-        # import numpy as np
-        # import wavio
-        # import base64
-        # import io
+#         # import numpy as np
+#         # import wavio
+#         # import base64
+#         # import io
 
-        # rate = 16000  # samples per second
-        # T = 3         # sample duration (seconds)
-        # f = 440.0     # sound frequency (Hz)
-        # t = np.linspace(0, T, T*rate, endpoint=False)
-        # x = np.sin(2*np.pi * f * t)
+#         # rate = 16000  # samples per second
+#         # T = 3         # sample duration (seconds)
+#         # f = 440.0     # sound frequency (Hz)
+#         # t = np.linspace(0, T, T*rate, endpoint=False)
+#         # x = np.sin(2*np.pi * f * t)
 
-        # file_in_memory = io.BytesIO()
+#         # file_in_memory = io.BytesIO()
 
-        # wavio.write(file_in_memory, x, rate, sampwidth=3)
+#         # wavio.write(file_in_memory, x, rate, sampwidth=3)
 
-        # file_in_memory.seek(0)
+#         # file_in_memory.seek(0)
 
-        # encode_output = base64.b64encode(file_in_memory.read())
+#         # encode_output = base64.b64encode(file_in_memory.read())
 
-        # print(encode_output)
+#         # print(encode_output)
 
-        import wavio
-        import wave
+#         import wavio
+#         import wave
 
-        # Open the WAV file
-        with wave.open(filename, 'rb') as wav_file:
-            # Read the data
-            # data =  b"" +wav_file.readframes(wav_file.getnframes())
-            print(wav_file.getnframes())
-            data =   wav_file.readframes(5000)
+#         # Open the WAV file
+#         with wave.open(filename, 'rb') as wav_file:
+#             # Read the data
+#             # data =  b"" +wav_file.readframes(wav_file.getnframes())
+#             print(wav_file.getnframes())
+#             data =   wav_file.readframes(5000)
             
-            audio_data_array: np.ndarray = np.frombuffer(data, np.int16).astype(np.float32) / 255.0
+#             audio_data_array: np.ndarray = np.frombuffer(data, np.int16).astype(np.float32) / 255.0
        
 
-            print(audio_data_array,audio_data_array.shape)
-            # print(memory_file)
-            # encode_output = base64.b64encode(file_in_memory.read())
-            # print(encode_output)
-            # print(audio_data_array.shape,audio_data_array)
-            return  audio_data_array
+#             print(audio_data_array,audio_data_array.shape)
+#             # print(memory_file)
+#             # encode_output = base64.b64encode(file_in_memory.read())
+#             # print(encode_output)
+#             # print(audio_data_array.shape,audio_data_array)
+#             return  audio_data_array
 
 
-        # print(filename)
-        # file_data=io.BytesIO()
-        # wav_file = wave.open(file_data, 'rb')
+#         # print(filename)
+#         # file_data=io.BytesIO()
+#         # wav_file = wave.open(file_data, 'rb')
 
-        # # Get the number of frames in the file
-        # num_frames = wav_file.getnframes()
+#         # # Get the number of frames in the file
+#         # num_frames = wav_file.getnframes()
 
-        # # Get the frame width in bytes
-        # frame_width = wav_file.getsampwidth()
+#         # # Get the frame width in bytes
+#         # frame_width = wav_file.getsampwidth()
 
-        # # Read the frames into a byte array
-        # data = wav_file.readframes(num_frames)
+#         # # Read the frames into a byte array
+#         # data = wav_file.readframes(num_frames)
 
-        # # Convert the byte array to a NumPy array
-        # data = np.frombuffer(data, dtype=np.int16)
+#         # # Convert the byte array to a NumPy array
+#         # data = np.frombuffer(data, dtype=np.int16)
 
-        # file_data.seek(0)
-        # # # Reshape the array if the file is stereo
-        # # if wav_file.getnchannels() == 2:
-        # #     data = data.reshape(-1, 2)
-        # print(file_data.shape,data.shape)
-        # return file_data
+#         # file_data.seek(0)
+#         # # # Reshape the array if the file is stereo
+#         # # if wav_file.getnchannels() == 2:
+#         # #     data = data.reshape(-1, 2)
+#         # print(file_data.shape,data.shape)
+#         # return file_data
 
-    def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :
+#     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :
     
-        # from pydub import AudioSegment
+#         # from pydub import AudioSegment
 
-        # # Load the sound file
-        # sound = AudioSegment.from_file(audio_file_path)
+#         # # Load the sound file
+#         # sound = AudioSegment.from_file(audio_file_path)
 
-        # new_wav_file_path=str(audio_file_path)+".wav"
-        # # Export as WAV
-        # sound.export(new_wav_file_path, format="wav")
-        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
-        audio=self.read_wav_file(audio_file_path)
+#         # new_wav_file_path=str(audio_file_path)+".wav"
+#         # # Export as WAV
+#         # sound.export(new_wav_file_path, format="wav")
+#         audio_file_path=Transcriber.check_and_convert(audio_file_path)
+#         audio=self.read_wav_file(audio_file_path)
 
         
-        return self.transcribeLang(audio,language)
+#         return self.transcribeLang(audio,language)
     
-    def transcribeADLang(self,audio:sr.AudioData,language='he') -> [str, str] :
+#     def transcribeADLang(self,audio:sr.AudioData,language='he') -> [str, str] :
         
-        return self.transcribeLang(self.audio_to_audioAray(audio),language)
+#         return self.transcribeLang(self.audio_to_audioAray(audio),language)
     
         
-    def transcribeLang(self,audio,language='he') -> [str, str] : 
-        # speech_file = whisper.load_audio(audio_file_path)
+#     def transcribeLang(self,audio,language='he') -> [str, str] : 
+#         # speech_file = whisper.load_audio(audio_file_path)
 
-        segments, _ = self.model.transcribe(audio,
-                                    language=language,
-                                    beam_size=5,
-                                    vad_filter=self.VAD_FILTER,
-                                    vad_parameters=dict(min_silence_duration_ms=1000))
-        segments = [s.text for s in segments]
-        transcription = " ".join(segments)
-        transcription = transcription.strip()
-        return transcription,language
-
-
+#         segments, _ = self.model.transcribe(audio,
+#                                     language=language,
+#                                     beam_size=5,
+#                                     vad_filter=self.VAD_FILTER,
+#                                     vad_parameters=dict(min_silence_duration_ms=1000))
+#         segments = [s.text for s in segments]
+#         transcription = " ".join(segments)
+#         transcription = transcription.strip()
+#         return transcription,language
 
 
-class fasterWhisperTrnscriber_not_work(Trnscriber):
+
+
+class FasterWhisperTranscriber_not_work(Transcriber):
       
     NUM_WORKERS = 10
     LANGUAGE_CODE = "auto"
@@ -772,8 +826,9 @@ class fasterWhisperTrnscriber_not_work(Trnscriber):
 
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :
         
-        audio_file_path=Trnscriber.check_and_convert(audio_file_path)
-        audio = Trnscriber.getfileStreamWisper(audio_file_path)
+        audio_file_path=Transcriber.check_and_convert(audio_file_path)
+        # audio = Transcriber.getfileStreamWisper(audio_file_path)
+        audio = Transcriber.get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
     
@@ -800,7 +855,7 @@ class fasterWhisperTrnscriber_not_work(Trnscriber):
 if __name__ == '__main__':
     
     # f1="/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/tmp_1700480401.106842.wav"
-    # print(QuickWhisperTrnscriber().transcribeFileLang(f1))
+    # print(QuickWhisperTranscriber().transcribeFileLang(f1))
     # exit()
     ##################
     # engine = pyttsx3.init()
@@ -810,14 +865,16 @@ if __name__ == '__main__':
     
     ##############################
     
-    ask="נשיא טורקיה רג'פ טאיפ ארדואן ממשיך בקו הניצי שלו מול ישראל, ונפגש היום עם נשיא איראן איברהים ראיסי בפסגה כלכלית שנערכה בטשקנט, בירת אוזבקיסטן. בלשכת ארדואן אמרו כי הנשיא הטורקי אמר לעמיתו האיראני כי יש להגביר את הלחץ על ישראל על מנת לעצור את ההתקפות שלה ברצועת עזה במסגרת הניסיון להשמיד את חמאס. בנוסף, הצהיר ארדואן כי הוא מוכן לקבל על עצמו תפקיד של \"נותן ערבות\" על מנת לפתור את המשבר."
+    # ask="נשיא טורקיה רג'פ טאיפ ארדואן ממשיך בקו הניצי שלו מול ישראל, ונפגש היום עם נשיא איראן איברהים ראיסי בפסגה כלכלית שנערכה בטשקנט, בירת אוזבקיסטן. בלשכת ארדואן אמרו כי הנשיא הטורקי אמר לעמיתו האיראני כי יש להגביר את הלחץ על ישראל על מנת לעצור את ההתקפות שלה ברצועת עזה במסגרת הניסיון להשמיד את חמאס. בנוסף, הצהיר ארדואן כי הוא מוכן לקבל על עצמו תפקיד של \"נותן ערבות\" על מנת לפתור את המשבר."
+    # ask="The following sample includes the host name and required headers. It's important to note that the service also expects audio data, which is not included in this sample. As mentioned earlier, chunking is recommended but not required."
     speech_file_path = Path(__file__).parent / "speech.mp3"
     
     # vg=VoiceGenerator()
     
     # vg.speak_to_file(ask)
-    # vg.play(speech_file_path)
-        
+    # vg.playfromFile(speech_file_path)
+    # Transcriber.check_and_convert(speech_file_path)
+    # exit()  
     #################################
     # vg.say("חברים יקרים. אני מאוד שמח היום.. סוף-סוף קול עובד טוב!")
     # vg.play2('/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.mp3')
@@ -837,15 +894,17 @@ if __name__ == '__main__':
     # filename='/Users/dmitryshlymovich/workspace/wisper/tmp/voice-assistant-chatgpt/recording.tmp.mp4'
     # filename='/Users/dmitryshlymovich/Downloads/Recording_erez.m4a'
     # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/output.wav'
-    filename='/Users/dmitryshlymovich/Downloads/sentence_two.wav'
+    # filename='/Users/dmitryshlymovich/Downloads/sentence_two.wav'
+    # filename='/Users/dmitryshlymovich/Downloads/test.wav'
+    filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/save_webm_1703403658.7392378.wav'
         
     # filename=speech_file_path
     # print(ask)
-    # instances = [WhisperAsrTrnscriber(),WhisperRegTrnscriber(),TransformersTrnscriber(),OpenAITrnscriber()]
-    # instances=[QuickWhisperTrnscriber()]
-    # instances=[QuickWhisperTrnscriber()]
-    # instances=[WhisperRegTrnscriber()]
-    instances = [WhisperAsrTrnscriber(),WhisperRegTrnscriber(),TransformersTrnscriber(),OpenAITrnscriber()]
+    # instances = [WhisperAsrTranscriber(),WhisperRegTranscriber(),TransformersTranscriber(),OpenAITranscriber()]
+    # instances=[QuickWhisperTranscriber()]
+    # instances=[QuickWhisperTranscriber()]
+    # instances=[TransformersTranscriber(modelType="openai/whisper-small")]
+    instances = [WhisperAsrTranscriber(),WhisperRegTranscriber(),TransformersTranscriber(),OpenAITranscriber()]
     
 
     @utility.timing_decorator

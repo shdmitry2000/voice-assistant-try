@@ -5,3 +5,4 @@ libportaudio2
 libmagic1
 espeak
 libespeak-dev
+...

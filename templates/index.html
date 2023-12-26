@@ -1,80 +1,110 @@
-
-
 <!DOCTYPE html>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<link rel="shortcut icon" href="#">
 <html>
-   <head>
-       <title>Live Transcription</title>
-   </head>
-   <body>
-        <h1>Transcribe Audio With Flask 2.0</h1>
-        <button id="recordButton">
-            <i class="fas fa-microphone"></i>
-           </button>
-           <p id="status">Connection status will go here</p>
-           <p id="transcript"></p>
+ <head>
+ <title>Live Transcription</title>
+ </head>
+ <body>
+ <h1>Live Transcription test (socket)</h1>
+ <button id="recordButton">
+ <i class="fas fa-microphone"></i>
+ </button>
+ <p id="status">Connection status will go here</p>
+ <p id="transcript"></p>
+ <input type="checkbox" id="nearRealTime" value="true">
+ <label for="nearRealTime">Near Real Time</label><br>
+ <input type="text" id="answer" name="answer">
+ <button onclick="sendAnswer()">Say</button>
+ <audio id="audioPlayer" controls></audio>
+
+ <script>
+
+ let isRecording = false;
+ let mediaRecorder;
+ let ws;
 
 
-        <script>   
+ function sendAnswer() {
+    var answer = document.getElementById('answer').value;
+    fetch("http://" + location.host + "/say", {
+       method: "POST",
+       body: JSON.stringify({
+         say: answer
+       }),
+       headers: {
+         "Content-type": "application/json; charset=UTF-8"
+       }
+    }).then(response => response.blob())
+    .then(blob => {
+        var url = window.URL.createObjectURL(blob);
+        var audioPlayer = document.getElementById('audioPlayer');
+        audioPlayer.src = url;
+        audioPlayer.play();
+    });
+   }
 
-            let isRecording = false;
-            let mediaRecorder;
-            let ws;
+ navigator.mediaDevices.getUserMedia({ audio: true })
+ .then(stream => {
+ mediaRecorder = new MediaRecorder(stream, {
+     mimeType: 'audio/webm;rate=16000' 
+ });
 
-            navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => {
-            mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'audio/webm;rate=16000'   
-            });
+ const socket = new WebSocket("ws://" + location.host + "/listen");
 
-            const socket = new WebSocket("ws://" + location.host + "/listen");
-
-            mediaRecorder.onstart = function() {
-                socket.send("start");
-               }
-              
-            mediaRecorder.onstop = function() {
-                socket.send("stop");
-            }
-
-            
-
-            socket.onopen = () => {
-                document.querySelector('#status').textContent = 'Connected';
-                mediaRecorder.addEventListener('dataavailable', async (event) => {
-                if (event.data.size > 0 && socket.readyState == 1) {
-                    if (isRecording) {
-                        socket.send(event.data);
-                    }
-                }
-                });
-
-                document.getElementById('recordButton').addEventListener('click', function() {
-                if (mediaRecorder.state == 'recording') {
-                    isRecording = false;
-                    mediaRecorder.stop();
-                    this.innerHTML = '<i class="fas fa-microphone"></i>';
-                } else {
-                    isRecording = true;
-                    mediaRecorder.start(250);
-                    this.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-                }
-                });
-            };
-
-            socket.onmessage = (message) => {
-                const received = message.data;
-                if (received) {
-                document.querySelector('#transcript').textContent += ' ' + message.data;
-                }
-            };
-            })
-            .catch(err => {
-            console.error('The following error occurred: ' + err);
-            });
-
-            
-        </script>
+ mediaRecorder.onstart = function() {
+     socket.send(JSON.stringify({
+         operation: "start",
+         nearRealTime: document.querySelector('#nearRealTime').checked
+     }));
+    }
    
-   </body>
+ mediaRecorder.onstop = function() {
+     socket.send("stop");
+ }
+
+ socket.onopen = () => {
+     document.querySelector('#status').textContent = 'Connected';
+     mediaRecorder.addEventListener('dataavailable', async (event) => {
+     if (event.data.size > 0 && socket.readyState == 1) {
+       if (isRecording) {
+         socket.send(event.data);
+       }
+     }
+     });
+
+     document.getElementById('recordButton').addEventListener('click', function() {
+     if (mediaRecorder.state == 'recording') {
+       isRecording = false;
+       mediaRecorder.stop();
+       this.innerHTML = '<i class="fas fa-microphone"></i>';
+     } else {
+       isRecording = true;
+       mediaRecorder.start(250);
+       this.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+     }
+     });
+ };
+
+ socket.onmessage = (message) => {
+     const received = message.data;
+     if (received) {
+     document.getElementById('answer').value += ' ' + received; // Set the response as the value of the text input
+     }
+ };
+
+ 
+ })
+ .catch(err => {
+ console.error('The following error occurred: ' + err);
+ });
+
+ 
+ </script>
+ 
+ </body>
 </html>
+
+
+
+

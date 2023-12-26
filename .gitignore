@@ -2,17 +2,23 @@
 
 asrmodel
 models
+__pycache__
 
 *.pem
 *.csr
 
-*old.py
-*copy.py
+*.tmp.*
 *.wav
 *.mp4
+*.mp3
 *.srt
 *.tsv
 
+*old.py
+*copy.py
+
+
+test.py
 
 
 

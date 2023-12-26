@@ -16,7 +16,7 @@ import traceback
 
 # Audio settings
 STEP_IN_SEC: int = 1    # We'll increase the processable audio data by this
-LENGHT_IN_SEC: int = 6    # We'll process this amount of audio data together maximum
+LENGHT_IN_SEC: int = 29    # We'll process this amount of audio data together maximum
 NB_CHANNELS = 1
 RATE = 16000
 CHUNK = RATE
@@ -34,7 +34,7 @@ def use_mic_onserver_post():
     
     def send_audio_to_server(audio) -> str:
         print("sent audio:")
-        wav_data=voice.Trnscriber.get_wav_data_from_audio_data(audio,convert_rate=16000)
+        wav_data=voice.Transcriber.get_wav_data_from_audio_data(audio,convert_rate=16000)
         print("post")
         response = requests.post(TRANSCRIPTION_API_ENDPOINT,
                                 data=wav_data,

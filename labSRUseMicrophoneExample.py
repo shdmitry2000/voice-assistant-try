@@ -23,92 +23,6 @@ stats: Dict[str, List[float]] = {"overall": [], "transcription": [], "postproces
 
 
 
-
-def use_mic_on_background_test(runlenth):
-    
-    
-    def callbackFunc(recognizer,audio):                          # this is called from the background thread
-        try:
-            print("in  callback")
-            transcription_start_time = time.time()
-            # transcription,_ =transcriberregTrans.transcribeLang(audio.)
-            # transcription=recognizer.recognize_whisper( audio,  language='he')
-            transcription=recognizer.recognize_whisper_full( audio,  language='he')
-            
-            print(transcription)
-            transcription_end_time = time.time()
-
-            # transcription = " ".join(segments)
-            
-            # remove anything from the text which is between () or [] --> these are non-verbal background noises/music/etc.
-            # transcription = re.sub(r"\[.*\]", "", transcription)
-            # transcription = re.sub(r"\(.*\)", "", transcription)
-            # We do this for the more clean visualization (when the next transcription we print would be shorter then the one we printed)
-            transcription = transcription.ljust(MAX_SENTENCE_CHARACTERS, " ")
-
-            transcription_postprocessing_end_time = time.time()
-
-            # print(transcription, end='\r', flush=True)
-
-            overall_elapsed_time = transcription_postprocessing_end_time - transcription_start_time
-            transcription_elapsed_time = transcription_end_time - transcription_start_time
-            postprocessing_elapsed_time = transcription_postprocessing_end_time - transcription_end_time
-            stats["overall"].append(overall_elapsed_time)
-            stats["transcription"].append(transcription_elapsed_time)
-            stats["postprocessing"].append(postprocessing_elapsed_time)
-
-                    
-                    # print("You said " + recognizer.recognize_whisper(audio,language='he'))  # received audio data, now need to recognize it
-        except LookupError:
-            print("Oops! Didn't catch that")
-            
-           
-        # global file_counter
-        # try:
-            # print("in  callback")
-            # with open('test_wav'+str(file_counter)+'.wav', 'wb') as file:
-            #     wav_data = audio.get_wav_data()
-            #     file.write(wav_data)
-            #     file_counter=file_counter+1
-        #     transcription_start_time = time.time()
-        #     print("You said " + recognizer.recognize_whisper(audio,language='he'))  # received audio data, now need to recognize it
-        # except LookupError:
-        #     print("Oops! Didn't catch that")
-        
-        
-    r = labSpeachrecognitionImpl.LabRecognizer()
-    m = labSpeachrecognitionImpl.Microphone()
-    with m as source:
-        # r.energy_threshold = 270
-        
-        r.pause_threshold = 0.8  # seconds of non-speaking audio before a phrase is considered complete 
-        r.phrase_threshold = 0.3  # minimum seconds of speaking audio before we consider the speaking audio a phrase - values below this are ignored (for filtering out clicks and pops)
-        r.non_speaking_duration = 0.4  # seconds of non-speaking audio to keep on both sides of the recording
-        r.dynamic_energy_threshold = True
-        print("Say something!")
-        r.adjust_for_ambient_noise(source)  # we only need to calibrate once, before we start listening
-
-    # start listening in the background (note that we don't have to do this inside a `with` statement)
-    stop_listening = r.listen_in_background(source=m, callback=callbackFunc,phrase_time_limit=LENGHT_IN_SEC)
-    # `stop_listening` is now a function that, when called, stops background listening
-    print("speak please")
-    # do some unrelated computations for 5 seconds
-    for _ in range(runlenth): time.sleep(1)  # we're still listening even though the main thread is doing other things
-
-    # stop_listening=True
-    stop_listening()
-    # calling this function requests that the background listener stop listening
-    # stop_listening(wait_for_stop=False)
-
-    # do some more unrelated things
-    # while True: time.sleep(0.1)  # we're not listening anymore, even though the background thread might still be running for a second or two while cleaning up and stopping
-
-
-
-
-
-
-
     
 
 def use_mic_on_background_not_connected(runlenth):
@@ -318,77 +232,17 @@ def use_microfon():
 
 
 
-def use_file(file_path,method_name,*args, **kwargs):
-    
-    def run_method(class_instance, method_name, *args, **kwargs):
-        method = getattr(class_instance, method_name, None)
-        if method is not None:
-            return method(*args, **kwargs)
-        else:
-            print(f"No method named {method_name} found in the class")
-
-    r = labSpeachrecognitionImpl.LabRecognizer()
-    r.energy_threshold = 4000
-    
-    # file_path='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.wav'
-    file_path=voice.Transcriber.check_and_convert(file_path)
-    with labSpeachrecognitionImpl.AudioFile(file_path) as source:
-        r.adjust_for_ambient_noise(source, duration=1)
-        audio = r.record(source)
-    
-    # with sr.Microphone() as source:
-    #     print("Say something!")
-    #     # Listen for the first phrase and extract it into audio data
-    #     audio = r.listen(source)
-    
-    try:
-    
-        transcription_start_time = time.time()
-                 
-        # message = r.recognize_whisper(audio)
-        # (message,_)=r.recognize_azure(audio,language='en-US',key=os.environ.get('MICROSOFT_SPEACH_TO_TEXT_API_KEY'),location=os.environ.get('MICROSOFT_SPEACH_TO_TEXT_SPEECH_REGION'))
-        message = run_method(r,method_name,audio,*args, **kwargs)
-        # message=r.recognize_google(audio,language='he')
-        print("You said: " , message)
-        transcription_postprocessing_end_time = time.time()
-        
-        transcription_end_time = time.time()
-
-        # print(transcription, end='\r', flush=True)
-
-        overall_elapsed_time = transcription_postprocessing_end_time - transcription_start_time
-        transcription_elapsed_time = transcription_end_time - transcription_start_time
-        postprocessing_elapsed_time = transcription_postprocessing_end_time - transcription_end_time
-        stats["overall"].append(overall_elapsed_time)
-        stats["transcription"].append(transcription_elapsed_time)
-        stats["postprocessing"].append(postprocessing_elapsed_time)
-
-    except sr.UnknownValueError:
-        print("Google Speech Recognition could not understand audio")
-    
-
 
 if __name__ == "__main__":
     try:
-        # filename='/Users/dmitryshlymovich/Downloads/Recording_erez.m4a'  
-        # filename='/Users/dmitryshlymovich/Downloads/sentence_two.wav'
-        filename='/Users/dmitryshlymovich/Downloads/test.wav'
-        # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.-en.wav'
-        use_file(filename,method_name="recognize_whisper",language='he')
-        # use_file(filename,method_name="recognize_google",language='he')
-        # use_file(filename,method_name="recognize_Transformer",language='he')
-        # use_file(filename,method_name="recognize_Transformer",model="openai/whisper-small",language='he')
-        # use_file(filename,method_name="recognize_Transformer",model="openai/whisper-large-v3",language='he')
-        # use_file(filename,method_name="recognize_openAI",language='he')
-        # use_file(filename,method_name="recognize_azure",language='he-IL',key=os.environ.get('MICROSOFT_SPEACH_TO_TEXT_API_KEY'),location=os.environ.get('MICROSOFT_SPEACH_TO_TEXT_SPEECH_REGION'))
-        # runlenth=25
-        # use_mic_on_background(runlenth)
+        runlenth=25
+        use_mic_on_background(runlenth)
         # use_mic_on_background_not_connected(runlenth)
         # use_mic_on_background_test(runlenth)
         
         # use_microfon()
         
-        # print(sr.__version__)
+        
 
     except KeyboardInterrupt:
         pass
@@ -406,8 +260,6 @@ if __name__ == "__main__":
     )
     # We need to add the step_in_sec to the latency as we need to wait for that chunk of audio
     print(f"The average latency is {np.mean(stats['overall'])+STEP_IN_SEC:.4f}s")
-        
-        
-        
+            
       
     

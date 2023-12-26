@@ -41,7 +41,7 @@ class LabRecognizer(sr.Recognizer):
 
         if load_options or not hasattr(self, "Transformer_model") or self.Transformer_model.get(model) is None:
             self.Transformer_model = getattr(self, model, {})
-            self.Transformer_model[model] = voice.TransformersTrnscriber(modelType=model)
+            self.Transformer_model[model] = voice.TransformersTranscriber(modelType=model)
 
 
         # 16 kHz https://github.com/openai/whisper/blob/28769fcfe50755a817ab922a7bc83483159600a9/whisper/audio.py#L98-L99
@@ -51,7 +51,7 @@ class LabRecognizer(sr.Recognizer):
         
     
  
-    def recognize_asr(self, audio_data, model="large-v2",  load_options=None, language=None, translate=False,  **transcribe_options):
+    def recognize_asr(self, audio_data, model="large-v2",  load_options=None, language=None,   **transcribe_options):
         
         
         """
@@ -70,7 +70,7 @@ class LabRecognizer(sr.Recognizer):
 
         if load_options or not hasattr(self, "asr_model") or self.asr_model.get(model) is None:
             self.asr_model = getattr(self, model, {})
-            self.asr_model[model] = voice.WhisperAsrTrnscriber(modelType=model)
+            self.asr_model[model] = voice.WhisperAsrTranscriber(modelType=model)
 
 
         # 16 kHz https://github.com/openai/whisper/blob/28769fcfe50755a817ab922a7bc83483159600a9/whisper/audio.py#L98-L99
@@ -99,7 +99,7 @@ class LabRecognizer(sr.Recognizer):
 
         if load_options or not hasattr(self, "whisper_full_model") or self.whisper_full_model.get(model) is None:
             self.whisper_full_model = getattr(self, model, {})
-            self.whisper_full_model[model] = voice.WhisperRegTrnscriber(modelType=model)
+            self.whisper_full_model[model] = voice.WhisperRegTranscriber(modelType=model)
 
 
         # 16 kHz https://github.com/openai/whisper/blob/28769fcfe50755a817ab922a7bc83483159600a9/whisper/audio.py#L98-L99
@@ -122,7 +122,7 @@ class LabRecognizer(sr.Recognizer):
         """
 
         if  not hasattr(self, "openAI_model") :
-            self.openAI_model = voice.OpenAITrnscriber()
+            self.openAI_model = voice.OpenAITranscriber()
             
 
         # 16 kHz https://github.com/openai/whisper/blob/28769fcfe50755a817ab922a7bc83483159600a9/whisper/audio.py#L98-L99
@@ -131,7 +131,6 @@ class LabRecognizer(sr.Recognizer):
         return  self.openAI_model.transcribeADLang(audio_data,language=language)[0]
            
            
-        
 
 class Microphone(sr.Microphone):
     def __init__(self, device_index=None, sample_rate=None, chunk_size=1024):
@@ -145,6 +144,7 @@ class AudioData(sr.AudioData):
     def __init__(self, frame_data, sample_rate, sample_width):
          super().__init__(frame_data, sample_rate, sample_width)
          
-         
-
+class AudioFile(sr.AudioFile):     
+    def __init__(self, filename_or_fileobject):
+         super().__init__(filename_or_fileobject)
  
