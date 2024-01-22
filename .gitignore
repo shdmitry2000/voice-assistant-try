@@ -19,7 +19,7 @@ __pycache__
 *old.py
 *copy.py
 
-
+*.tmp
 test.py
 
 
