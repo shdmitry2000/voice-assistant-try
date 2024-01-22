@@ -1,0 +1,371 @@
+# https://www.section.io/engineering-education/how-to-set-up-a-python-web-socket-with-aiohttp/
+
+from pathlib import Path,PosixPath
+from aiohttp import web
+import aiohttp
+import concurrent.futures
+import asyncio
+# from speech_recognition import AudioData
+# from asyncio import Awaitable
+import labSpeachrecognitionImpl
+import librosa
+import voice
+import time
+import io
+from io import BytesIO
+import traceback
+# from fastapi import Depends
+from concurrent.futures import ThreadPoolExecutor
+
+from pydub import AudioSegment, silence
+import json
+from  socket_helper import *
+
+
+import speech_recognition as sr
+import os ,time
+import voice,labSpeachrecognitionImpl
+from typing import Dict, List
+import numpy as np
+from bidi.algorithm import get_display
+
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+import multiprocessing
+import signal
+
+from fastapi import FastAPI ,WebSocket , Request
+from fastapi.responses import FileResponse
+from fastapi.templating import Jinja2Templates
+from starlette.websockets import WebSocketState, WebSocketDisconnect
+from audio_utility import *
+
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
+recognizer= labSpeachrecognitionImpl.LabRecognizer()
+
+
+SILENCE_DELETE_SEC=1
+
+
+
+# Audio settings
+LENGHT_IN_SEC: int = 30    # We'll process this amount of audio data together maximum
+# STEP_IN_SEC: int = 1    # We'll increase the processable audio data by this
+# LENGHT_IN_SEC: int = 15    # We'll process this amount of audio data together maximum
+# NB_CHANNELS = 1
+# RATE = 16000
+# CHUNK = RATE
+# # Visualization (expected max number of characters for LENGHT_IN_SEC audio)
+# MAX_SENTENCE_CHARACTERS = 80
+
+
+pool = None
+method_name=None
+
+
+def init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+#
+
+
+
+def main():
+    method_name="recognize_google"
+    app = FastAPI()
+    templates = Jinja2Templates(directory="templates")
+    
+
+
+    @app.post('/request_post_test')
+    # https://stackoverflow.com/questions/65371754/aiohttp-web-post-method-get-params
+    async def post_handler_test(request):
+        
+        
+        print('\n--- request ---\n')
+
+        # ----------------------------------------------------------------------
+
+        # print('ARGS string:', request.query_string)  # arguments in URL as string
+        # print('ARGS       :', request.query)         # arguments in URL as dictionary
+
+        # ----------------------------------------------------------------------
+
+        # >> it can't use at the same time: `content.read()`, `text()`, `post()`, `json()`, `multiparts()` 
+        # >> because they all read from the same stream (not get from variable) 
+        # >> and after first read this stream is empty
+
+        # ----------------------------------------------------------------------
+
+        print('BODY bytes :', await request.content.read())  # body as bytes  (post data as bytes, json as bytes)
+        # print('BODY string:', await request.text())          # body as string (post data as string, json as string)
+
+        # ----------------------------------------------------------------------
+
+        print('POST       :', await request.post())         # POST data
+
+        # ----------------------------------------------------------------------
+
+        # try:
+        #     print('JSON:', await request.json())  # json data as dictionary/list
+        # except Exception as ex:
+        #     print('JSON: ERROR:', ex)
+
+        # ----------------------------------------------------------------------
+
+        try:
+            #print('MULTIPART:', await request.multipart())  # files and forms
+            reader = await request.multipart()
+            print('MULTIPART:', reader)
+            while True:
+                part = await reader.next()
+                if part is None: 
+                    break
+                print('filename:', part.filename)
+                print('>>> start <<<')
+                print(await part.text())
+                print('>>> end <<<')
+        except Exception as ex:
+            print('MULTIPART: ERROR:', ex)
+
+        # ----------------------------------------------------------------------
+
+        return web.Response(text='Testing...')
+
+
+
+    @app.post('/predict')
+    async def predict_handler(request):
+        wav_data: bytes = await request.content.read()
+        try:
+            
+            segment =AudioSegment.from_wav(BytesIO(wav_data))
+            # segment = AudioSegment._from_safe_wav(data)
+            # play(segment)
+            
+            #closed temprory
+            audio = labSpeachrecognitionImpl.AudioData(segment.raw_data, segment.frame_rate,
+                                segment.sample_width)
+            
+            # audio_data = voice.Transcriber.get_audio_data_from_wav_data(data)
+            
+            # #serial  
+            # result = transcribe(recognizer, audio)
+            # return web.json_response({"prediction":str(result)})
+        
+            #paralel
+            transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+            return web.json_response({"prediction":str(transcription_task.get())})
+            
+
+            
+        except Exception as error:
+                    result = "Error"
+                    print("An error occurred while performing recognition:", type(error).__name__, "–", error) # An error occurred: NameError – name 'x' is not defined
+                    traceback.print_tb(error.__traceback__)
+
+
+    @app.post('/say')
+    async def say_handler(request):
+        print("say")
+        try:
+            
+            data = await request.json()
+            print(data)
+            answer = data.get('say')
+            speech_file_path = Path(__file__).parent / "speech.mp3"
+        
+            vg=voice.VoiceGenerator()
+            vg.speak_to_file_openai(answer,speech_file_path)
+            # vg.speak_to_file_google(answer,speech_file_path)
+
+            
+            # # Return the wav file as a response
+            return web.FileResponse(speech_file_path)
+
+            
+        except Exception as error:
+                    result = "Error"
+                    print("An error occurred while performing recognition:", type(error).__name__, "–", error) # An error occurred: NameError – name 'x' is not defined
+                    traceback.print_tb(error.__traceback__)
+
+
+    @app.get('/test')
+    async def test(request):
+        return FileResponse('./templates/index_test.html')
+
+    #index
+    @app.get("/")
+    def read_root(request: Request):
+        return templates.TemplateResponse("index.html", {"request": request})
+
+   
+    async def  perform_webm(websocket: WebSocket,msg,socketHelper:audio_handler_helper):
+        
+        
+        if msg is not None:
+            msg = await websocket.receive()
+            await socketHelper.add_chank(msg)
+        while True:
+            if msg["type"] == "websocket.receive_bytes":
+                data_all=msg["bytes"]
+                socketHelper.add_chank(data_all)
+                
+                # opus_data.write(data_all)
+                
+                if ( nearRealTime): 
+                    opus_data.seek(0)
+                    # audio_data = opus_data.read()
+                    the_segment = AudioSegment.from_file(opus_data,format="webm")
+                    silence_times = getSilenceStartStopTime(the_segment)
+                    if len(silence_times) >= 1:
+                        await checkTask(transcription_tasks[0],ws)
+                        if  last_element==silence_times[-1] and last_element not in usedElements:
+                            last_element=silence_times[-1]
+                            (start_time, stop_time)=last_element
+                            chunk = the_segment[start_time:stop_time]
+                            try:
+                                print("perform chank",start_time, stop_time)
+                                audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
+                                # #paralel perform
+                                print("added task 1")
+                                transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+                                transcription_tasks.append(transcription_task)
+                                
+
+                            except Exception as e:
+                                print(f"Error while printing transcription: {e}")
+                                traceback.print_exc()
+                                raise  e
+                            usedElements.append(last_element)
+                        else:
+                            last_element=silence_times[-1]  
+                else:
+                    pass   
+            elif msg["type"] == "websocket.receive_text" or msg["type"] == "websocket.disconnect":
+                if "stop" in msg["text"] or msg["type"] == "websocket.disconnect" : 
+                    # Handle stop operation
+                    print("Stop operation")
+                        
+                    if ( nearRealTime):
+                        silence_times = getSilenceStartStopTime(the_segment)
+                        if  len(silence_times) >= 1 and last_element!=silence_times[-1]:
+                            (start_time, stop_time)=silence_times[-1]
+                            print("perform chank",start_time)
+                            chunk = the_segment[start_time:]
+                            audio = labSpeachrecognitionImpl.AudioData(chunk.raw_data, chunk.frame_rate,chunk.sample_width)
+                            print("added task 2")
+                            transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+                            transcription_tasks.append(transcription_task)
+                                
+                        for transcription_task in transcription_tasks:
+                            transcription_task.wait() # wait for the task to complete
+                            await checkTask(transcription_task,websocket)
+                        
+                        break
+                    
+                    else:
+                        opus_data.seek(0)
+                        # audio_data = opus_data.read()
+                        the_segment = AudioSegment.from_file(opus_data,format="webm")
+                        audio = labSpeachrecognitionImpl.AudioData(the_segment.raw_data, the_segment.frame_rate,the_segment.sample_width)
+                        transcription_task = pool.apply_async(transcribe, (recognizer,audio) )#, callback=print_result)
+                        print("added task 3")
+                        await websocket.send_text(str(transcription_task.get()) ) 
+                        print("finished task 3")
+                        
+                    break
+                
+                    if msg["type"] == "websocket.disconnect":
+                        print("close")
+                        # await websocket.close
+                        break
+                    
+                else:
+                    print("other msg",msg)
+            
+            msg = await websocket.receive()
+                 
+   
+        
+   
+
+    def is_json(myjson):
+        try:
+            json_object = json.loads(myjson)
+        except ValueError as e:
+            return False
+        return True
+
+
+   
+    @app.websocket("/listen")
+    async def audio_handler(websocket: WebSocket):
+        await websocket.accept()
+        try:
+            helper=None
+            while True:
+                msg = await websocket.receive()
+                # if msg["type"] == "websocket.disconnect":
+                #         print("close")
+                #         await websocket.close
+                #         break
+                if msg["type"] == "websocket.receive_text":
+                    data=msg["text"]
+                    if is_json(data):
+                        data = json.loads(data)
+                        if 'operation' in data and data['operation'] == 'start':
+                            nearRealTime = bool(data.get('nearRealTime', False))
+                            print(f"Start operation, nearRealTime: {nearRealTime}")
+                            try:
+                                helper=socket_helper_webm(pool=pool,near_real_time=nearRealTime)
+                                async with asyncio.TaskGroup() as tg:
+                                    tg.create_task(perform_webm(websocket,None,helper))
+                                    tg.create_task( websocket.send_text(helper.get_current_text()) )                                
+                            except (asyncio.exceptions.CancelledError,TypeError) as e:
+                                print("task cancel ,error",e)
+        
+        
+        
+                            
+                            break
+                        elif data == 'start':
+                            print(f"Start operation, no json:")
+                            await perform_webm(websocket,None,socket_helper_webm(pool=pool,near_real_time=False))
+                            break
+                        elif data == 'stop':
+                            print("Stop operation")
+                        else:
+                            print(data)
+                            print("replay sent")
+                            await websocket.send_text(msg + '/answer')
+                    else:
+                        print(msg)
+                        print("replay sent")
+                        await websocket.send_text(msg + '/answer')
+                elif msg["type"] == "websocket.receive_bytes":
+                    print("in binary")
+                    await perform_webm(websocket,msg,socket_helper_webm(pool=pool))
+                elif msg["type"] == "websocket.disconnect":
+                    print("close")
+                    # await websocket.close()
+                    break
+                    
+        except (WebSocketDisconnect) as e :
+            print(f'Connection closed {e.code}') # This line is never reached unless I send anything to the client
+            # await websocket.close
+       
+
+
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+
+
+
+    
+
+if __name__ == "__main__":
+    pool = multiprocessing.Pool(initializer=init_worker,processes=5) # limit to 10 processes
+    main()
+    

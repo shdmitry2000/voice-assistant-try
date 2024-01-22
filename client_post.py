@@ -11,6 +11,7 @@ import numpy as np
 import pyaudio
 import requests
 import traceback
+from audio_utility import *
 
 # Yeah I could do this config with argparse, but I won't...
 
@@ -34,12 +35,12 @@ def use_mic_onserver_post():
     
     def send_audio_to_server(audio) -> str:
         print("sent audio:")
-        wav_data=voice.Transcriber.get_wav_data_from_audio_data(audio,convert_rate=16000)
+        wav_data=get_wav_data_from_audio_data(audio,convert_rate=16000)
         print("post")
         response = requests.post(TRANSCRIPTION_API_ENDPOINT,
                                 data=wav_data,
                                 headers={'Content-Type': 'application/octet-stream'})
-        print("posted")
+        print("posted",response.json())
         result = response.json()
         return result["prediction"]
 

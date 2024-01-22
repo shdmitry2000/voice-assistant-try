@@ -11,7 +11,8 @@ from io import BytesIO
 
 import labSpeachrecognitionImpl
 import voice
-   
+from audio_utility import *
+
 file_counter=0
 LENGHT_IN_SEC: int = 6    # We'll process this amount of audio data together maximum
 STEP_IN_SEC: int = 1    # We'll increase the processable audio data by this
@@ -123,8 +124,8 @@ def use_mic_on_background_not_connected(runlenth):
             #                    segment.sample_width)
             print("in  callback",audio.sample_rate,audio.sample_width)
             transcription_start_time = time.time()
-            data=voice.Transcriber.get_wav_data_from_audio_data(audio,convert_rate=16000)
-            audio_data = voice.Transcriber.get_audio_data_from_wav_data(data)
+            data=get_wav_data_from_audio_data(audio,convert_rate=16000)
+            audio_data = get_audio_data_from_wav_data(data)
             
             
             transcription=recognizer.recognize_whisper(audio_data,language='he')
@@ -331,7 +332,7 @@ def use_file(file_path,method_name,*args, **kwargs):
     r.energy_threshold = 4000
     
     # file_path='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.wav'
-    file_path=voice.Transcriber.check_and_convert(file_path)
+    file_path=check_and_convert(file_path)
     with labSpeachrecognitionImpl.AudioFile(file_path) as source:
         r.adjust_for_ambient_noise(source, duration=1)
         audio = r.record(source)
@@ -374,8 +375,8 @@ if __name__ == "__main__":
         # filename='/Users/dmitryshlymovich/Downloads/sentence_two.wav'
         filename='/Users/dmitryshlymovich/Downloads/test.wav'
         # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.-en.wav'
-        use_file(filename,method_name="recognize_whisper",language='he')
-        # use_file(filename,method_name="recognize_google",language='he')
+        # use_file(filename,method_name="recognize_whisper",language='he')
+        use_file(filename,method_name="recognize_google",language='he')
         # use_file(filename,method_name="recognize_Transformer",language='he')
         # use_file(filename,method_name="recognize_Transformer",model="openai/whisper-small",language='he')
         # use_file(filename,method_name="recognize_Transformer",model="openai/whisper-large-v3",language='he')

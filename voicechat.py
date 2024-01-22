@@ -91,7 +91,7 @@ def init_load_setups():
 
 def transcribeOp(audio_file):
     global messages
-
+    print("transcribeOp")
     # audio_filename_with_extension = audio + '.wav'
     # os.rename(audio, audio_filename_with_extension)
     
@@ -115,6 +115,7 @@ def transcribeOp(audio_file):
     return chat_transcript
 
 def transcribe(audio):
+    
     from transformers import WhisperProcessor, WhisperForConditionalGeneration
     from datasets import load_dataset
 

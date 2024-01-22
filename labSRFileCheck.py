@@ -12,6 +12,7 @@ from io import BytesIO
 import labSpeachrecognitionImpl
 import voice
 import traceback
+from audio_utility import *
 
    
 file_counter=0
@@ -36,7 +37,7 @@ def use_file(file_path,method_name,*args, **kwargs):
     r.energy_threshold = 4000
     
     # file_path='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.wav'
-    file_path=voice.Transcriber.check_and_convert(file_path)
+    file_path=check_and_convert(file_path)
     with labSpeachrecognitionImpl.AudioFile(file_path) as source:
         r.adjust_for_ambient_noise(source, duration=1)
         audio = r.record(source)
@@ -83,6 +84,7 @@ if __name__ == "__main__":
         filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/userQuestion_OAWaqg5kDs.wav'
         filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/userQuestion_YaTiIvfTNC.wav'
         # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.-en.wav'
+        filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/otni_q1.wav'
         
         def runRecognize(method_name,*args, **kwarg):
             

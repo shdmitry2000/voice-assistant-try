@@ -53,6 +53,7 @@
  const socket = new WebSocket("ws://" + location.host + "/listen");
 
  mediaRecorder.onstart = function() {
+    console.log("sent start","nearRealTime:", document.querySelector('#nearRealTime').checked)
      socket.send(JSON.stringify({
          operation: "start",
          nearRealTime: document.querySelector('#nearRealTime').checked
@@ -60,6 +61,7 @@
     }
    
  mediaRecorder.onstop = function() {
+     console.log("sent stop")
      socket.send("stop");
  }
 

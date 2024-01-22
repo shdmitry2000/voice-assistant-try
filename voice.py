@@ -51,13 +51,13 @@ from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from datasets import load_dataset
 import traceback
 import utility
-
+from  audio_utility import *
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from datasets import load_dataset
 
 from faster_whisper import WhisperModel
-import wave
+# import wave
 import speech_recognition as sr
 import soundfile as sf
 from bidi.algorithm import get_display
@@ -221,149 +221,144 @@ class VoiceGenerator():
     #     st.components.v1.html(f"<script>{js_code}</script>", height=0)
 
 
-    
+
+        
 
 class Transcriber(ABC):
     
 
-    def getVoiceFilePath(self,audioname, recordFormat):
-        return audioname.replace("/./", "/") + recordFormat
+    # def getVoiceFilePath(self,audioname, recordFormat):
+    #     return audioname.replace("/./", "/") + recordFormat
     
-    def getVoiceFile(self,audioname, recordFormat):
-        return open(self.getVoiceFilePath(audioname, recordFormat), "rb")
-
-    # def get_audio_record_format(self,orgfile):
-    #     info = magic.from_file(orgfile).lower()
-    #     print(f'\n\n Recording file info is:\n {info} \n\n')
-    #     if 'webm' in info:
-    #         return '.webm'
-    #     elif 'iso media' in info:
-    #         return '.mp4'
-    #     elif 'wave' in info:
-    #         return '.wav'
-    #     else:
-    #         return '.mp4'
+    # def getVoiceFile(self,audioname, recordFormat):
+    #     return open(self.getVoiceFilePath(audioname, recordFormat), "rb")
+    # @staticmethod
+    # def get_audio_record_format(filename):
+    #     with open(filename, "rb") as file:
+    #         info = fleep.get(file.read(128))
+    #         if info.extension:
+    #             file_format = info.extension[0]
+    #         else:
+    #             file_format = None # or any other default value
         
-    @staticmethod
-    def check_and_convert(filename, supported_formats=['wav', 'aiff', 'aifc', 'flac']):
-        # Check the file format
-        with open(filename, "rb") as file:
-            info = fleep.get(file.read(128))
-            if info.extension:
-                file_format = info.extension[0]
-            else:
-                file_format = None # or any other default value
-        
-        # print("file_format",file_format)
-        # If the file format is not supported, convert it
-        if file_format not in supported_formats:
-            audio = AudioSegment.from_file(filename, format=file_format)
-            # if isinstance(filename, PosixPath):
-            #     # filename = Path(filename)
-            #     filename=filename.as_uri
+    # # convert unsupported formats to wav
+    # @staticmethod
+    # def check_and_convert(filename, supported_formats=['wav', 'aiff', 'aifc', 'flac']):
+    #     # Check the file format
+    #     # with open(filename, "rb") as file:
+    #     #     info = fleep.get(file.read(128))
+    #     #     if info.extension:
+    #     #         file_format = info.extension[0]
+    #     #     else:
+    #     #         file_format = None # or any other default value
+    #     file_format=Transcriber.get_audio_record_format(filename)
+    #     # print("file_format",file_format)
+    #     # If the file format is not supported, convert it
+    #     if file_format not in supported_formats:
+    #         audio = AudioSegment.from_file(filename, format=file_format)
+    #         # if isinstance(filename, PosixPath):
+    #         #     # filename = Path(filename)
+    #         #     filename=filename.as_uri
             
-            # new_file_name = filename / 'wav'
-            new_file_name=str(filename)+'.wav'
-            # new_file_name="output.wav"
-            audio.export(new_file_name, format='wav')
-            return new_file_name
-        else:
-            return filename
-    @staticmethod
-    def segment(file_path,segment_file_path,minuts_from=0,minutes_to=10):
-        song = AudioSegment.from_mp3(file_path)
+    #         # new_file_name = filename / 'wav'
+    #         new_file_name=str(filename)+'.wav'
+    #         # new_file_name="output.wav"
+    #         audio.export(new_file_name, format='wav')
+    #         return new_file_name
+    #     else:
+    #         return filename
+    
+    # # @staticmethod
+    # # def segment(file_path,segment_file_path,minuts_from=0,minutes_to=10):
+    # #     song = AudioSegment.from_mp3(file_path)
 
-        # PyDub handles time in milliseconds
-        time_from = minuts_from * 60 * 1000
-        time_to = minutes_to * 60 * 1000
+    # #     # PyDub handles time in milliseconds
+    # #     time_from = minuts_from * 60 * 1000
+    # #     time_to = minutes_to * 60 * 1000
 
-        all_what_you_need_minutes = song[time_from:time_to]
+    # #     all_what_you_need_minutes = song[time_from:time_to]
 
-        all_what_you_need_minutes.export(segment_file_path, format="mp3")
+    # #     all_what_you_need_minutes.export(segment_file_path, format="mp3")
         
-    @staticmethod
-    def save_wav_audio(filename, audio_data, sample_rate= 16000, num_channels=1, byte_width=2):
-        # Create a wave file
-        try:
-            # Create a wave file
-            with wave.open(filename, 'wb') as wav_file:
-                # Set the parameters of the wave file
-                wav_file.setnchannels(num_channels)
-                wav_file.setsampwidth(byte_width)
-                wav_file.setframerate(sample_rate)
+    # @staticmethod
+    # def save_wav_from_byteio(filename, audio_data, sample_rate= 16000, num_channels=1, byte_width=2):
+    #     # Create a wave file
+    #     try:
+    #         # Create a wave file
+    #         with wave.open(filename, 'wb') as wav_file:
+    #             # Set the parameters of the wave file
+    #             wav_file.setnchannels(num_channels)
+    #             wav_file.setsampwidth(byte_width)
+    #             wav_file.setframerate(sample_rate)
 
-                # Write the audio data to the wave file
-                wav_file.writeframes(audio_data)
+    #             # Write the audio data to the wave file
+    #             wav_file.writeframes(audio_data)
 
-            # Return the absolute path of the saved file
-            return True, os.path.abspath(filename)
-        except Exception as e:
-            print(f"Failed to save audio: {e}")
-            return False, None
+    #         # Return the absolute path of the saved file
+    #         return True, os.path.abspath(filename)
+    #     except Exception as e:
+    #         print(f"Failed to save audio: {e}")
+    #         return False, None
         
-    @staticmethod
-    def save_audio_from_audio_data(audio:sr.AudioData,file_path):
-        try:
-            with open(file_path, 'wb') as file:
-                wav_data = audio.get_wav_data()
-                file.write(wav_data)
-                file.close()
-                return True, os.path.abspath(file_path)
-        except Exception as e:
-            print(f"Failed to save audio: {e}")
-            return False, None
+    # @staticmethod
+    # def save_audio_from_audio_data(audio:sr.AudioData,file_path):
+    #     try:
+    #         with open(file_path, 'wb') as file:
+    #             wav_data = audio.get_wav_data()
+    #             file.write(wav_data)
+    #             file.close()
+    #             return True, os.path.abspath(file_path)
+    #     except Exception as e:
+    #         print(f"Failed to save audio: {e}")
+    #         return False, None
     
-    @staticmethod
-    def get_wisper_audio_array_from_file(audio_file_path) : 
-        audio = Path(audio_file_path)
-        audio = whisper.load_audio(audio)
-        # print(audio)
-        audio = whisper.pad_or_trim(audio)
-        # print(audio)
-        return audio
+    # @staticmethod
+    # def get_wisper_audio_array_from_file(audio_file_path) : 
+    #     audio = Path(audio_file_path)
+    #     audio = whisper.load_audio(audio)
+    #     # print(audio)
+    #     audio = whisper.pad_or_trim(audio)
+    #     # print(audio)
+    #     return audio
     
-    @staticmethod
-    def get_wisper_audio_array_from_audio_data(audio_data:sr.AudioData) : 
-        wav_bytes = audio_data.get_wav_data(convert_rate=16000)
+    # @staticmethod
+    # def get_wisper_audio_array_from_audio_data(audio_data:sr.AudioData) : 
+    #     wav_bytes = audio_data.get_wav_data(convert_rate=16000)
         
-        audio = np.frombuffer(wav_bytes, np.int16).flatten().astype(np.float32) / 32768.0
-        # audio_array = whisper.pad_or_trim(audio) 
-        # print(audio)
-        audio = whisper.pad_or_trim(audio)
-        # print(audio)
-        return audio
+    #     audio = np.frombuffer(wav_bytes, np.int16).flatten().astype(np.float32) / 32768.0
+    #     # audio_array = whisper.pad_or_trim(audio) 
+    #     # print(audio)
+    #     audio = whisper.pad_or_trim(audio)
+    #     # print(audio)
+    #     return audio
     
-    @staticmethod
-    def get_audio_data_from_wav_data(wav_data) :
-        # data = audio.get_wav_data()
-        # segment = AudioSegment._from_safe_wav(data)
-        segment =AudioSegment.from_wav(BytesIO(wav_data))
-        # segment = AudioSegment._from_safe_wav(data)
-        # play(segment)
-        audio_data = sr.AudioData(segment.raw_data, segment.frame_rate,
-                               segment.sample_width)
-        return audio_data
+    # @staticmethod
+    # def get_audio_data_from_wav_data(wav_data) :
+    #     segment =AudioSegment.from_wav(BytesIO(wav_data))
+    #     audio_data = sr.AudioData(segment.raw_data, segment.frame_rate,
+    #                            segment.sample_width)
+    #     return audio_data
     
     
-    @staticmethod
-    def get_wav_data_from_audio_data(audio:sr.AudioData,convert_rate=None, convert_width=None) :
-      return audio.get_wav_data(convert_rate=convert_rate, convert_width=convert_width)
-    @staticmethod
-    def audio_to_audioAray(audio:sr.AudioData):
-        wav_bytes = audio.get_wav_data(convert_rate=16000)
-        wav_stream = io.BytesIO(wav_bytes)
-        audio_array, sampling_rate = sf.read(wav_stream)
-        audio_array = audio_array.astype(np.float32)
-        return audio_array
+    # @staticmethod
+    # def get_wav_data_from_audio_data(audio:sr.AudioData,convert_rate=None, convert_width=None) :
+    #   return audio.get_wav_data(convert_rate=convert_rate, convert_width=convert_width)
+    # @staticmethod
+    # def audio_to_audioAray(audio:sr.AudioData):
+    #     wav_bytes = audio.get_wav_data(convert_rate=16000)
+    #     wav_stream = io.BytesIO(wav_bytes)
+    #     audio_array, sampling_rate = sf.read(wav_stream)
+    #     audio_array = audio_array.astype(np.float32)
+    #     return audio_array
     
     
-    @staticmethod
-    def load_audioSource_from_file(file_path):
-        r=sr.Recognizer()
-        with sr.AudioFile(file_path) as source:
-            r.adjust_for_ambient_noise(source, duration=1)
-            audio = r.record(source)
-            return audio
+    # @staticmethod
+    # def load_audioSource_from_file(file_path):
+    #     r=sr.Recognizer()
+    #     with sr.AudioFile(file_path) as source:
+    #         r.adjust_for_ambient_noise(source, duration=1)
+    #         audio = r.record(source)
+    #         return audio
         
     
     @abstractmethod
@@ -389,14 +384,14 @@ class WhisperAsrTranscriber(Transcriber):
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :  
         # print("audio.name",audio_file_path,'Language',language)
-        audio_file_path=Transcriber.check_and_convert(audio_file_path)
-        audio = Transcriber.get_wisper_audio_array_from_file(audio_file_path)
+        audio_file_path=check_and_convert(audio_file_path)
+        audio = get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
         
     def transcribeADLang(self,audio:sr.AudioData,language='he') -> [str, str] :
         
-        return self.transcribeLang(self.audio_to_audioAray(audio),language)
+        return self.transcribeLang(audio_to_audioAray(audio),language)
     
     def transcribeLang(self,audio,language='he') -> [str, str] :
         if language is None:
@@ -459,16 +454,15 @@ class WhisperRegTranscriber(Transcriber):
         import soundfile as sf
         from io import BytesIO
         
-        audio_file_path=Transcriber.check_and_convert(audio_file_path)
-        # audio = Transcriber.getfileStreamWisper(audio_file_path)
-        audio = Transcriber.get_wisper_audio_array_from_file(audio_file_path)
+        audio_file_path=check_and_convert(audio_file_path)
+        audio = get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
     
         
     def transcribeADLang(self,audio:sr.AudioData,language='he') -> [str, str] :
         
-        return self.transcribeLang(self.get_wisper_audio_array_from_audio_data(audio),language)
+        return self.transcribeLang(get_wisper_audio_array_from_audio_data(audio),language)
     
     def transcribeLang(self,audio,language='he') -> [str, str] :
         # make log-Mel spectrogram and move to the same device as the model
@@ -508,7 +502,7 @@ class OpenAITranscriber(Transcriber):
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :  
         # print("audio.name",audio_file_path,'Language',language)
-        audio_file_path=Transcriber.check_and_convert(audio_file_path)
+        audio_file_path=check_and_convert(audio_file_path)
         audio_file= open(audio_file_path, "rb")
         
         
@@ -538,7 +532,7 @@ class OpenAITranscriber(Transcriber):
         # audio_array = audio_array.astype(np.float32)
         curr_start_time = time.time()
         file_name='tmp_'+str(curr_start_time)+'.wav'
-        done,file_path=self.save_audio_from_audio_data(audio,file_name)
+        done,file_path=save_audio_from_audio_data(audio,file_name)
         if done :
             transcribe= self.transcribeFileLang(file_name,language)
             os.remove(file_path)
@@ -550,7 +544,7 @@ class OpenAITranscriber(Transcriber):
         
         curr_start_time = time.time()
         file_name='tmp_'+str(curr_start_time)+'.wav'
-        done,file_path=self.save_wav_audio(file_name,audio)
+        done,file_path=save_wav_from_byteio(file_name,audio)
         # # Open the file in binary write mode
         # with open(file_name, 'wb') as f:
         #     f.write(audio)
@@ -601,15 +595,14 @@ class TransformersTranscriber(Transcriber):
     
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :
         
-        audio_file_path=Transcriber.check_and_convert(audio_file_path)
-        # audio = Transcriber.getfileStreamWisper(audio_file_path)
-        audio = Transcriber.get_wisper_audio_array_from_file(audio_file_path)
+        audio_file_path=check_and_convert(audio_file_path)
+        audio = get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
     
     def transcribeADLang(self,audio:sr.AudioData,language='he') -> [str, str] :
         
-        return self.transcribeLang(self.audio_to_audioAray(audio),language)
+        return self.transcribeLang(audio_to_audioAray(audio),language)
     
       
     def transcribeLang(self,audio,language='he') -> [str, str] : 
@@ -826,9 +819,8 @@ class FasterWhisperTranscriber_not_work(Transcriber):
 
     def transcribeFileLang(self,audio_file_path,language=None) ->  [str, str] :
         
-        audio_file_path=Transcriber.check_and_convert(audio_file_path)
-        # audio = Transcriber.getfileStreamWisper(audio_file_path)
-        audio = Transcriber.get_wisper_audio_array_from_file(audio_file_path)
+        audio_file_path=check_and_convert(audio_file_path)
+        audio = get_wisper_audio_array_from_file(audio_file_path)
         
         return self.transcribeLang(audio,language)
     
@@ -897,29 +889,27 @@ if __name__ == '__main__':
     # filename='/Users/dmitryshlymovich/Downloads/sentence_two.wav'
     # filename='/Users/dmitryshlymovich/Downloads/test.wav'
     filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/save_webm_1703403658.7392378.wav'
-        
+    filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/userQuestion_OAWaqg5kDs.wav'
     # filename=speech_file_path
     # print(ask)
     # instances = [WhisperAsrTranscriber(),WhisperRegTranscriber(),TransformersTranscriber(),OpenAITranscriber()]
     # instances=[QuickWhisperTranscriber()]
     # instances=[QuickWhisperTranscriber()]
     # instances=[TransformersTranscriber(modelType="openai/whisper-small")]
-    instances = [WhisperAsrTranscriber(),WhisperRegTranscriber(),TransformersTranscriber(),OpenAITranscriber()]
-    
+    # instances = [WhisperAsrTranscriber(),WhisperRegTranscriber(),TransformersTranscriber(),OpenAITranscriber()]
+    instances = [OpenAITranscriber()]
 
-    @utility.timing_decorator
-    def check_transcriber_file(transcriber,filename):
+    # @utility.timing_decorator
+    # def check_transcriber_file(transcriber,filename):
         
-        # audio=transcriber.getVoiceFile( filename, "")
-        transcription_result, languageCode = transcriber.transcribeFileLang(filename,language='he')
-        print('1',transcriber.__class__.__name__,transcription_result, languageCode)
+    #     transcription_result, languageCode = transcriber.transcribeFileLang(filename,language='he')
+    #     print('1',transcriber.__class__.__name__,transcription_result, languageCode)
         # print(find_string_differences_html(ask,transcription_result))
         # vg.speak_to_file(ask)
 
     @utility.timing_decorator
     def check_transcriber(transcriber,audio):
         
-        # audio=transcriber.getVoiceFile( filename, "")
         transcription_result, languageCode = transcriber.transcribeADLang(audio,language='he')
         print(transcriber.__class__.__name__,get_display(transcription_result), languageCode)
         print("regular",transcriber.__class__.__name__,(transcription_result), languageCode)
@@ -928,7 +918,7 @@ if __name__ == '__main__':
         
     
     for instance in instances:
-        audio=instance.load_audioSource_from_file(filename)
+        audio=load_audioSource_from_file(filename)
         # VoiceGenerator().play(audio)
         try:
             # for i in range(3):

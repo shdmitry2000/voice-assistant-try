@@ -52,6 +52,18 @@ def execute_blocking_whisper_prediction1(model: WhisperModel, audio_data:sr.Audi
     transcription = transcription.strip()
     return transcription
 
+# def execute_blocking_whisper_prediction1(model: WhisperModel, audio_data:sr.AudioData) -> str:
+#     audio_data_array: np.ndarray = np.frombuffer(audio_data.get_wav_data(convert_rate=16000), np.int16).astype(np.float32) / 255.0
+#     segments, _ = model.transcribe(audio_data_array,
+#                                    language=LANGUAGE_CODE,
+#                                    beam_size=5,
+#                                    vad_filter=VAD_FILTER,
+#                                    vad_parameters=dict(min_silence_duration_ms=1000))
+#     segments = [s.text for s in segments]
+#     transcription = " ".join(segments)
+#     transcription = transcription.strip()
+#     return transcription
+
 
 # @app.post("/predict")
 # async def predict(audio_data: bytes = Depends(parse_body)):

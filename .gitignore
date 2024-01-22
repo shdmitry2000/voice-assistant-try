@@ -2,7 +2,9 @@
 
 asrmodel
 models
+
 __pycache__
+.DS_Store
 
 *.pem
 *.csr
