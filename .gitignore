@@ -18,6 +18,7 @@ __pycache__
 
 *old.py
 *copy.py
+*.copy.md
 
 *.tmp
 test.py

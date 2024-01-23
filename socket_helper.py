@@ -31,21 +31,32 @@ import asyncio
 import multiprocessing
 import voice
 from abc import ABC, abstractmethod
+import functools
+
 from audio_utility import *
 class MultiprocessingHelper:
-   def __init__(self,pool = None):
+    def __init__(self,pool = None):
         if pool is None:
            self.pool=multiprocessing.Pool(processes=2)
         else:
             self.pool=pool
         
-   async def perform_multiprocess(self, *args, **kwargs):
+#    async def perform_multiprocess(self, *args, **kwargs):
+       
+#        loop = asyncio.get_event_loop()
+#        future = loop.run_in_executor(None, self.perform_task, *args, kwargs)
+#        return await future
+
+    async def perform_multiprocess(self, *args, **kwargs):
+       
        loop = asyncio.get_event_loop()
-       future = loop.run_in_executor(None, self.perform_task, *args, kwargs)
+       func = functools.partial(self.perform_task, *args, **kwargs)
+       future = loop.run_in_executor(None, func)
        return await future
 
-   @abstractmethod
-   def perform_task(self, *args, **kwargs):
+
+    @abstractmethod
+    def perform_task(self, *args, **kwargs):
         pass
 
 class MultiprocessingTranscriberHelper(MultiprocessingHelper):
@@ -57,11 +68,13 @@ class MultiprocessingTranscriberHelper(MultiprocessingHelper):
         self.recognizer=recognizer
         self.savetofile=savetofile
 
-    
     def perform_task(self, *args, **kwargs):
         r = sr.Recognizer()
-        audio_data = args[0]['audio_data'] # Accessing audio_data
-        language = args[0]['language'] # Accessing language
+        print(args,"arg2",kwargs)
+        audio_data = kwargs['audio_data'] # Accessing audio_data
+        
+        if audio_data is None :
+            raise RuntimeError("No audio Data was provided!")
         
         if self.savetofile:
                 transcription_start_time = time.time()
@@ -76,8 +89,9 @@ class MultiprocessingTranscriberHelper(MultiprocessingHelper):
                     # transcription=recognizer.recognize_azure(audio,language='he-IL',key=os.environ.get('MICROSOFT_SPEACH_TO_TEXT_API_KEY'),location=os.environ.get('MICROSOFT_SPEACH_TO_TEXT_SPEECH_REGION'))
                 
             else:
-                method_name= self.method_name   
-                text=utility.run_method(self.recognizer,method_name,audio_data=audio_data,language=language)
+                kwargs['method_name']=self.method_name
+                # method_name= self.method_name   
+                text=utility.run_method(self.recognizer,*args, **kwargs)
                 # text = r.recognize_google(audio_data=audio_data,language=language)
         
         

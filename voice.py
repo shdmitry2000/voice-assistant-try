@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-import base64
+# import base64
 import io ,time ,os
-import pyaudio
+# import pyaudio
 import numpy as np
 
 # import whisperx
@@ -18,23 +18,23 @@ from pydub import AudioSegment
 
 import whisper
 # from audiorecorder import audiorecorder
-import magic
-import re
+# import magic
+# import re
 from dotenv import load_dotenv
-import shutil
+# import shutil
 from tempfile import NamedTemporaryFile
-import subprocess
+# import subprocess
 from gtts import gTTS
-import pyttsx3
-import objc
+# import pyttsx3
+# import objc
 # import pygame
 
 from google.cloud import texttospeech
 from pydub.playback import play
 
-import shutil
+# import shutil
 from pathlib import Path,PosixPath
-import voice
+# import voice
 
 import openai
 # from decouple import config
@@ -42,7 +42,7 @@ from gtts import gTTS
 # import winreg
 # import win32com.client
 # import pythoncom
-import pyttsx3
+# import pyttsx3
 from dotenv import load_dotenv
 from pydub.playback import play
 from dotenv import load_dotenv
@@ -61,7 +61,7 @@ from faster_whisper import WhisperModel
 import speech_recognition as sr
 import soundfile as sf
 from bidi.algorithm import get_display
-import fleep
+# import fleep
 
 
 load_dotenv()

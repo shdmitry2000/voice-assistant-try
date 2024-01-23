@@ -1,10 +1,7 @@
 
-import base64
-import io ,time ,os
-import pyaudio
+import io ,os
 import numpy as np
 
-# import whisperx
 
 from io import BytesIO
 
@@ -19,15 +16,9 @@ from pydub import AudioSegment, silence
 
 import whisper
 # from audiorecorder import audiorecorder
-import magic
-import re
 from dotenv import load_dotenv
-import shutil
 from tempfile import NamedTemporaryFile
-import subprocess
-from gtts import gTTS
-import pyttsx3
-import objc
+
 # import pygame
 import wave
 from google.cloud import texttospeech
@@ -35,15 +26,13 @@ from pydub.playback import play
 
 import shutil
 from pathlib import Path,PosixPath
-import voice
 
-import openai
 # from decouple import config
-from gtts import gTTS
+# from gtts import gTTS
 # import winreg
 # import win32com.client
 # import pythoncom
-import pyttsx3
+# import pyttsx3
 from dotenv import load_dotenv
 from pydub.playback import play
 from dotenv import load_dotenv
@@ -51,7 +40,7 @@ from dotenv import load_dotenv
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from datasets import load_dataset
 import traceback
-import utility
+# import utility
 
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from datasets import load_dataset

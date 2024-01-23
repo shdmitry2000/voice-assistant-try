@@ -1,6 +1,6 @@
 import asyncio
 from aiohttp import web
-from fastapi import FastAPI ,WebSocket , Request ,Depends ,Response ,UploadFile,File ,Query
+from fastapi import FastAPI ,WebSocket , Request ,Depends ,Response ,UploadFile,File ,Query ,Body
 from fastapi.responses import FileResponse
 from starlette.websockets import WebSocketDisconnect
 from fastapi.templating import Jinja2Templates
@@ -12,8 +12,10 @@ import signal
 import labSpeachrecognitionImpl
 import multiprocessing
 from enum import Enum
-
+from pydantic import Field
     
+from typing import Any
+
 # from deepgram import Deepgram
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -223,13 +225,17 @@ def main():
         recognize_Transformer = "recognize_Transformer"
         recognize_asr = "recognize_asr"
         recognize_whisper_full = "recognize_whisper_full"
-        recognize_tensorflow = "recognize_tensorflow"
+        recognize_azure = "recognize_azure"
+        # recognize_tensorflow = "recognize_tensorflow"
         
     
     @app.post('/transcribe')
     async def transcribe_audio(
         method: Method = Method.recognize_google,
-        file: UploadFile = File(...)):
+        file: UploadFile = File(...),
+        language: str = Query("he", description="Language of the audio"),
+        options: Any = None):
+        
         # Save the uploaded file temporarily
         with open(file.filename, 'wb+') as f:
             f.write(await file.read())
@@ -237,11 +243,15 @@ def main():
         # Transcribe the audio file
         # This part depends on the transcription service you're using
         # Here's a placeholder for where you'd call the transcription service
-        
         file_audio_data = load_audioSource_from_file(file_path=file.filename)
         mpthelper = MultiprocessingTranscriberHelper(recognizer=recognizer,method_name=method)
-        the_text=await mpthelper.perform_multiprocess(audio_data=file_audio_data,language='he')
-        
+        if not options is  None:
+            options_dict = json.loads(options)
+            print(type(options_dict) ,options_dict)
+            the_text=await mpthelper.perform_multiprocess(audio_data=file_audio_data,language=language,**options_dict)
+        else:
+            the_text=await mpthelper.perform_multiprocess(audio_data=file_audio_data,language=language)
+        os.remove(file.filename)
         # print("the_text",the_text)
       
         return {"prediction":str( the_text)}

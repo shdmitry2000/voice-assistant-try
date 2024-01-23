@@ -1,14 +1,14 @@
 
 import speech_recognition as sr
 import os ,time
-import voice,labSpeachrecognitionImpl
+import labSpeachrecognitionImpl
 from typing import Dict, List
 import numpy as np
 from bidi.algorithm import get_display
 
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import multiprocessing
 import signal
+from  audio_utility import *
 
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -37,7 +37,7 @@ def transcribe(recognizer,audio):
     try:
         transcription_start_time = time.time()
         file_name="save_reg_"+str(transcription_start_time) +".wav"
-        voice.Trnscriber.save_audio_from_audio_data(audio,file_name)
+        save_audio_from_audio_data(audio,file_name)
         # transcription="test"
         if method_name is None:
             transcription=recognizer.recognize_Transformer(audio,language='he')
@@ -97,9 +97,7 @@ def use_mic_on_background(runlenth):
 
     # start listening in the background (note that we don't have to do this inside a `with` statement)
     stop_listening = r.listen_in_background(source=m, callback=callbackFunc,phrase_time_limit=LENGHT_IN_SEC)
-    # stop_listening = r.listen_in_background(source=m, callback=callbackFunc)
-    
-    # do some unrelated computations for runlenth seconds
+   
     
     try:
         print("speak please")

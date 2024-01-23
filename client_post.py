@@ -1,14 +1,12 @@
 # data = np.frombuffer(audio.get_raw_data())
-import voice
+
 import labSpeachrecognitionImpl
 import re
 import sys
-import threading
 import time
 from typing import Dict, List
 
 import numpy as np
-import pyaudio
 import requests
 import traceback
 from audio_utility import *
