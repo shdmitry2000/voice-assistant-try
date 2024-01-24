@@ -3,7 +3,7 @@ py-cpuinfo
 librosa
 fleep
 gTTs
-pyobjc
+# pyobjc
 pyttsx3
 datasets
 traceback2
@@ -72,7 +72,7 @@ aiohttp_cors
 fastapi
 uvicorn
 python-multipart
-'uvicorn[standard]'
+# 'uvicorn[standard]'
 
 # deepspeed
 # flash-attn --no-build-isolation
