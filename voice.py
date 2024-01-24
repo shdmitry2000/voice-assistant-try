@@ -869,7 +869,7 @@ if __name__ == '__main__':
     # exit()  
     #################################
     # vg.say("חברים יקרים. אני מאוד שמח היום.. סוף-סוף קול עובד טוב!")
-    # vg.play2('/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.mp3')
+    # vg.play2('./speech.mp3')
     # vg.speak_to_file(ask,voice="nova")
     # https://platform.openai.com/docs/guides/text-to-speech/nova
     # https://platform.openai.com/docs/guides/text-to-speech/shimmer
@@ -882,14 +882,9 @@ if __name__ == '__main__':
     
     
     # exit()
-    # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/speech.wav'
-    # filename='/Users/dmitryshlymovich/workspace/wisper/tmp/voice-assistant-chatgpt/recording.tmp.mp4'
-    # filename='/Users/dmitryshlymovich/Downloads/Recording_erez.m4a'
-    # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/output.wav'
-    # filename='/Users/dmitryshlymovich/Downloads/sentence_two.wav'
-    # filename='/Users/dmitryshlymovich/Downloads/test.wav'
-    filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/save_webm_1703403658.7392378.wav'
-    filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/userQuestion_OAWaqg5kDs.wav'
+    filename='speech.mp3'
+    # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/save_webm_1703403658.7392378.wav'
+    # filename='/Users/dmitryshlymovich/workspace/wisper/voice-assistant-chatgpt/userQuestion_OAWaqg5kDs.wav'
     # filename=speech_file_path
     # print(ask)
     # instances = [WhisperAsrTranscriber(),WhisperRegTranscriber(),TransformersTranscriber(),OpenAITranscriber()]

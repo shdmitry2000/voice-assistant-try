@@ -174,8 +174,13 @@ def audio_to_audioAray(audio:sr.AudioData):
     return audio_array
 
 
-
 def load_audioSource_from_file(file_path):
+    segment =AudioSegment.from_file(file_path)
+    audio_data = sr.AudioData(segment.raw_data, segment.frame_rate,
+                            segment.sample_width)
+    return audio_data
+    
+def load_audioSource_from_file2(file_path):
     r=sr.Recognizer()
     with sr.AudioFile(file_path) as source:
         r.adjust_for_ambient_noise(source, duration=1)
