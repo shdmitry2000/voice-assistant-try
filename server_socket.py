@@ -235,26 +235,30 @@ def main():
         file: UploadFile = File(...),
         language: str = Query("he", description="Language of the audio"),
         options: Any = None):
-        
-        # Save the uploaded file temporarily
-        with open(file.filename, 'wb+') as f:
-            f.write(await file.read())
+        try:
+            # Save the uploaded file temporarily
+            with open(file.filename, 'wb+') as f:
+                f.write(await file.read())
 
-        # Transcribe the audio file
-        # This part depends on the transcription service you're using
-        # Here's a placeholder for where you'd call the transcription service
-        file_audio_data = load_audioSource_from_file(file_path=file.filename)
-        mpthelper = MultiprocessingTranscriberHelper(recognizer=recognizer,method_name=method)
-        if not options is  None:
-            options_dict = json.loads(options)
-            print(type(options_dict) ,options_dict)
-            the_text=await mpthelper.perform_multiprocess(audio_data=file_audio_data,language=language,**options_dict)
-        else:
-            the_text=await mpthelper.perform_multiprocess(audio_data=file_audio_data,language=language)
-        os.remove(file.filename)
-        # print("the_text",the_text)
-      
-        return {"prediction":str( the_text)}
+            # Transcribe the audio file
+            # This part depends on the transcription service you're using
+            # Here's a placeholder for where you'd call the transcription service
+            file_audio_data = load_audioSource_from_file(file_path=file.filename)
+            mpthelper = MultiprocessingTranscriberHelper(recognizer=recognizer,method_name=method,pool=pool)
+            if not options is  None:
+                options_dict = json.loads(options)
+                print(type(options_dict) ,options_dict)
+                the_text=await mpthelper.perform_multiprocess(audio_data=file_audio_data,language=language,**options_dict)
+            else:
+                the_text=await mpthelper.perform_multiprocess(audio_data=file_audio_data,language=language)
+            # os.remove(file.filename)
+            # print("the_text",the_text)
+        
+            return {"prediction":str( the_text)}
+        except Exception as error:
+                    result = "Error"
+                    print("An error occurred while performing recognition:", type(error).__name__, "–", error) # An error occurred: NameError – name 'x' is not defined
+                    traceback.print_tb(error.__traceback__)
         
 
     @app.get('/test')
